@@ -2,7 +2,7 @@ package com.elegant.software.quickpay.payments.truelayer.support
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 
-@ConfigurationProperties("com/elegant/software/quickpay/payments/truelayer")
+@ConfigurationProperties("ruelayer")
 data class TrueLayerProperties(
     // Legacy fields (kept for backward compatibility)
     val apiBase: String,

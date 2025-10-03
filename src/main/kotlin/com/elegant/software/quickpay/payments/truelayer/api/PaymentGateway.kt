@@ -4,9 +4,9 @@ import org.springframework.modulith.NamedInterface
 
 @NamedInterface("PaymentGateway")
 interface PaymentGateway {
-    fun startPayment(cmd: StartPaymentCommand): String
+    fun startPayment(cmd: PaymentRequested): String
 
-    data class StartPaymentCommand(
+    data class PaymentRequested(
         val orderId: String,
         val amountMinorUnits: Long,
         val currency: String,

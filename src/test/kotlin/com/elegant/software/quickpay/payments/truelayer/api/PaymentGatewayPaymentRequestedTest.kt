@@ -1,7 +1,5 @@
 package com.elegant.software.quickpay.payments.truelayer.api // <- adjust to your module's base package
 
-import com.elegant.software.quickpay.payments.truelayer.TrueLayerPaymentStarter
-import com.elegant.software.quickpay.payments.truelayer.api.PaymentGateway.StartPaymentCommand
 import com.elegant.software.quickpay.payments.truelayer.support.TrueLayerProperties
 import com.truelayer.java.TrueLayerClient
 import org.assertj.core.api.Assertions.assertThat
@@ -11,23 +9,22 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.modulith.test.ApplicationModuleTest
 import org.springframework.modulith.test.Scenario
-import org.springframework.test.context.bean.override.mockito.MockitoBean
-import org.springframework.beans.factory.annotation.Autowired
 
 
-
-@ApplicationModuleTest(verifyAutomatically = false, mode = ApplicationModuleTest.BootstrapMode.DIRECT_DEPENDENCIES)
+@ApplicationModuleTest(verifyAutomatically = false, mode = ApplicationModuleTest.BootstrapMode.ALL_DEPENDENCIES)
 class TrueLayerPaymentStarterTests {
 
-
+    @Autowired
     lateinit var gateway: PaymentGateway
 
-    @MockitoBean
+    @MockBean
     lateinit var trueLayerClient: TrueLayerClient
 
-    @MockitoBean
+    @MockBean
     open lateinit var trueLayerProperties: TrueLayerProperties
 
     // Optional: if your PaymentGateway returns a String, stub it (not strictly required for this test)
@@ -39,12 +36,12 @@ class TrueLayerPaymentStarterTests {
     fun `listener calls gateway with mapped StartPaymentCommand`(scenario: Scenario) {
         stubGateway()
 
-        val event = TrueLayerPaymentStarter.PaymentRequested(
+        val event = PaymentGateway.PaymentRequested(
             orderId = "order-42",
             amountMinorUnits = 12_34,     // e.g., 12.34 in minor units
             currency = "EUR",
             userDisplayName = "Ada Lovelace",
-            returnUri = "https://app.example.com/payments/return"
+            redirectReturnUri = "https://app.example.com/payments/return"
         )
 
         // Publish the domain event inside Scenario. Although @EventListener is sync by default,
@@ -59,7 +56,7 @@ class TrueLayerPaymentStarterTests {
                 assertThat(callCount).isEqualTo(1)
 
                 // Capture and assert the exact command mapped by the listener
-                val cmdCaptor = argumentCaptor<StartPaymentCommand>()
+                val cmdCaptor = argumentCaptor<PaymentGateway.PaymentRequested>()
                 verify(gateway).startPayment(cmdCaptor.capture())
 
                 val cmd = cmdCaptor.firstValue

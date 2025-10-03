@@ -35,7 +35,7 @@ class PaymentService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    override fun startPayment(cmd: PaymentGateway.StartPaymentCommand): String {
+    override fun startPayment(cmd: PaymentGateway.PaymentRequested): String {
         // Adapt types for SDK requirements
         val amountInMinor = cmd.amountMinorUnits.toInt() // SDK likely expects Int
         val currency = CurrencyCode.valueOf(cmd.currency.uppercase()) // Use SDK's CurrencyCode enum
