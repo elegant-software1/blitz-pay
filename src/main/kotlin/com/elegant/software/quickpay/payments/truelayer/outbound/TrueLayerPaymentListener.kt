@@ -18,7 +18,7 @@ class TrueLayerPaymentRequestListener(
     @EventListener
     fun on(e: PaymentRequested) {
         val paymentResult=gateway.startPayment(
-            PaymentRequested(e.orderId, e.amountMinorUnits, e.currency, e.userDisplayName, e.redirectReturnUri)
+            PaymentRequested(paymentRequestId =e.paymentRequestId,  e.orderId, e.amountMinorUnits, e.currency, e.userDisplayName, e.redirectReturnUri)
         )
         applicationEventPublisher.publishEvent(paymentResult)
     }

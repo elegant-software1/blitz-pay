@@ -88,6 +88,7 @@ class PaymentService(
             if (apiResponse == null) {
                 log.error("TrueLayer payment API response was null for order {}", paymentRequest.orderId)
                 return PaymentResult(
+                    paymentRequestId = paymentRequest.paymentRequestId!!,
                     orderId = paymentRequest.orderId,
                     error = "TrueLayer payment API response was null"
                 )
@@ -98,24 +99,24 @@ class PaymentService(
                     paymentRequest.orderId,
                     apiResponse.error
                 )
-                return PaymentResult(orderId = paymentRequest.orderId, error = apiResponse.error.toString())
+                return PaymentResult(paymentRequestId = paymentRequest.paymentRequestId!!,orderId = paymentRequest.orderId, error = apiResponse.error.toString())
             }
             val paymentData = apiResponse.data
             if (paymentData == null) {
                 log.error("TrueLayer payment API response data was null for order {}", paymentRequest.orderId)
-                return PaymentResult(orderId = paymentRequest.orderId, error = "Payment API response data was null")
+                return PaymentResult(paymentRequestId = paymentRequest.paymentRequestId!!,orderId = paymentRequest.orderId, error = "Payment API response data was null")
             }
             val paymentId = paymentData.id
             if (paymentId == null) {
                 log.error("TrueLayer payment ID was null in response for the order {}", paymentRequest.orderId)
-                return PaymentResult(orderId = paymentRequest.orderId, error = "Payment ID was null in response")
+                return PaymentResult(paymentRequestId = paymentRequest.paymentRequestId!!,orderId = paymentRequest.orderId, error = "Payment ID was null in response")
             }
             val redirectURI =
                 trueLayerClient.hppLinkBuilder().returnUri(URI.create("https://console.truelayer.com/redirect-page"))
                     .resourceToken(paymentData.resourceToken)
                     .resourceId(paymentId)
                     .build()
-            return PaymentResult(orderId = paymentRequest.orderId, paymentId = paymentId, redirectURI = redirectURI)
+            return PaymentResult(paymentRequestId = paymentRequest.paymentRequestId!!,orderId = paymentRequest.orderId, paymentId = paymentId, redirectURI = redirectURI)
         }
 
         return verifyResult()
