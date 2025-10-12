@@ -40,6 +40,8 @@ dependencies {
     implementation("com.truelayer:truelayer-java:17.4.0")
     implementation("com.truelayer:truelayer-signing:0.2.6") // official signing lib
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13")
+    // OAuth2 Resource Server for Keycloak
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     // Spring Boot DevTools for hot reload (active only in development)
     developmentOnly("org.springframework.boot:spring-boot-devtools")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
