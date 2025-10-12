@@ -156,6 +156,6 @@ Fixed existing test for TrueLayer payment integration.
 ## Notes
 
 - Integration tests requiring database (PostgreSQL) were excluded as they require TestContainers setup
-- WebhookController tests were simplified to avoid complex signature verification mocking
+- WebhookController tests were excluded due to complex context loading and signature verification mocking requirements
 - All tests follow existing repository conventions and patterns
 - Tests are independent and can run in parallel
