@@ -26,7 +26,7 @@ Open `src/test/kotlin/com/elegant/software/quickpay/TestApplication.kt` and run 
 #### Option 2: Verify with the integration test
 
 ```bash
-./gradlew test --tests '*ArconiaDevServicesIntegrationTest'
+./gradlew test --tests 'com.elegant.software.quickpay.ArconiaDevServicesIntegrationTest'
 ```
 
 This runs the integration test that starts the dev services and verifies they work correctly.

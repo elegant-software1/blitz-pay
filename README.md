@@ -22,7 +22,7 @@ See [ARCONIA-DEV-SERVICES.md](ARCONIA-DEV-SERVICES.md) for detailed documentatio
 
 Or verify dev services work with:
 ```bash
-./gradlew test --tests '*ArconiaDevServicesIntegrationTest'
+./gradlew test --tests 'com.elegant.software.quickpay.ArconiaDevServicesIntegrationTest'
 ```
 
 No database setup required! The PostgreSQL container will start automatically.

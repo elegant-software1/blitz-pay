@@ -22,5 +22,7 @@ echo "Note: The easiest way to run with dev services is from your IDE."
 echo "Open src/test/kotlin/com/elegant/software/quickpay/TestApplication.kt"
 echo "and run the main() function."
 echo ""
-echo "Alternatively, you can use: ./gradlew test --tests '*ArconiaDevServicesIntegrationTest' to verify dev services work."
+echo "Alternatively, you can use:"
+echo "  ./gradlew test --tests 'com.elegant.software.quickpay.ArconiaDevServicesIntegrationTest'"
+echo "to verify dev services work."
 
