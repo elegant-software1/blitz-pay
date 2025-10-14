@@ -35,7 +35,7 @@ dependencies {
     runtimeOnly("org.springframework.modulith:spring-modulith-starter-insight")
 
     implementation("org.springframework.boot:spring-boot-starter-webflux")
-    implementation("com.nimbusds:nimbus-jose-jwt:9.37")
+    implementation("com.nimbusds:nimbus-jose-jwt:10.5")
     // TrueLayer Java SDK
     implementation("com.truelayer:truelayer-java:17.4.0")
     implementation("com.truelayer:truelayer-signing:0.2.6") // official signing lib
