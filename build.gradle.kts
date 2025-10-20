@@ -48,7 +48,7 @@ dependencies {
 
     // Spring Boot’s Testcontainers support (provides @ServiceConnection)
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
-    testImplementation(platform("org.testcontainers:testcontainers-bom:1.20.3"))
+    testImplementation(platform("org.testcontainers:testcontainers-bom:2.0.1"))
 	testImplementation("org.testcontainers:junit-jupiter:1.19.7")
 	testImplementation("org.testcontainers:postgresql:1.19.7")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
