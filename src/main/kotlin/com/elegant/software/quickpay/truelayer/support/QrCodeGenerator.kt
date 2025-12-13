@@ -36,11 +36,19 @@ class QrCodeGenerator {
             currency = currency
         )
 
-        // Generate deep link
+        // 1️⃣ Build JSON payload for QR
+        val payloadJson = """{
+        "m": "$merchant",
+        "a": $amount,
+        "c": "$currency",
+        "u": "$finalPaymentUrl"
+    }""".trimIndent()
+
+        // 2️⃣ Generate deep link
         val deepLink = createDeepLink(finalPaymentUrl)
 
-        // Generate QR code image (simplified - in production use a QR library)
-        val qrCodeImage = generateQRCodeBase64(finalPaymentUrl)
+        // 3️⃣ Encode JSON into QR image
+        val qrCodeImage = generateQRCodeBase64(payloadJson)
 
         return QrCodeResult(
             paymentUrl = finalPaymentUrl,
