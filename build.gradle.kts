@@ -22,43 +22,49 @@ repositories {
 	maven { url = uri("https://repo.spring.io/snapshot") }
 }
 
+val postgresqlVersion = "42.7.3"
+val springModulithVersion = "1.2.3"
+
 dependencies {
-	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-	implementation("org.springframework.boot:spring-boot-starter-web")
-	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-	implementation("org.jetbrains.kotlin:kotlin-reflect")
-	implementation("org.springframework.modulith:spring-modulith-starter-core")
-	implementation("org.springframework.modulith:spring-modulith-starter-jpa")
-	implementation("org.postgresql:postgresql:${property("postgresqlVersion")}")
+    implementation("org.springframework.boot:spring-boot-starter-web")
+     implementation("org.springframework.boot:spring-boot-starter-webflux")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    implementation("org.jetbrains.kotlin:kotlin-reflect")
+    implementation("org.springframework.modulith:spring-modulith-starter-core")
+    implementation("org.springframework.modulith:spring-modulith-starter-jpa")
+    implementation("org.postgresql:postgresql:${property("postgresqlVersion")}")
     runtimeOnly("org.springframework.modulith:spring-modulith-actuator")
-    // Optional: observability & runtime insights
     runtimeOnly("org.springframework.modulith:spring-modulith-starter-insight")
 
-    implementation("org.springframework.boot:spring-boot-starter-webflux")
-    implementation("com.nimbusds:nimbus-jose-jwt:10.5")
-    // TrueLayer Java SDK
+    // TrueLayer dependencies
     implementation("com.truelayer:truelayer-java:17.4.0")
-    implementation("com.truelayer:truelayer-signing:0.2.6") // official signing lib
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13")
-    // Spring Boot DevTools for hot reload (active only in development)
-    developmentOnly("org.springframework.boot:spring-boot-devtools")
-	testImplementation("org.springframework.boot:spring-boot-starter-test")
-	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-	testImplementation("org.springframework.modulith:spring-modulith-starter-test")
-
-    // Spring Boot’s Testcontainers support (provides @ServiceConnection)
-    testImplementation("org.springframework.boot:spring-boot-testcontainers")
-    testImplementation(platform("org.testcontainers:testcontainers-bom:1.20.3"))
-	testImplementation("org.testcontainers:junit-jupiter:1.19.7")
-	testImplementation("org.testcontainers:postgresql:1.19.7")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
-
-    implementation("com.google.zxing:core:3.5.3")
-    implementation("com.google.zxing:javase:3.5.3")
     implementation("com.truelayer:truelayer-signing:0.2.6")
 
+    // Springdoc - ensure compatible version
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
+
+    // JWT
+    implementation("com.nimbusds:nimbus-jose-jwt:10.5")
+
+    // QR Code generation
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.google.zxing:javase:3.5.3")
+
+    // Logging
+    implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
+
+    // Dev tools
+    developmentOnly("org.springframework.boot:spring-boot-devtools")
+
+    // Test dependencies
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.modulith:spring-modulith-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:postgresql")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 dependencyManagement {

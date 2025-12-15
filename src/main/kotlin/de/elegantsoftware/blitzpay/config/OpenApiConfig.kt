@@ -1,6 +1,8 @@
 package de.elegantsoftware.blitzpay.config
 
-import org.springdoc.core.models.GroupedOpenApi
+import io.swagger.v3.oas.models.OpenAPI
+import io.swagger.v3.oas.models.info.Info
+import io.swagger.v3.oas.models.servers.Server
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -8,23 +10,19 @@ import org.springframework.context.annotation.Configuration
 class OpenApiConfig {
 
     @Bean
-    fun apiGroup(): GroupedOpenApi =
-        GroupedOpenApi.builder()
-            .group("quickpay-api")
-            .packagesToScan(
-                "de.elegantsoftware.blitzpay.merchant",
-                "de.elegantsoftware.blitzpay.product",
-                "de.elegantsoftware.blitzpay.invoice",
-                "de.elegantsoftware.blitzpay.truelayer.inbound"
+    fun customOpenAPI(): OpenAPI {
+        return OpenAPI()
+            .info(
+                Info()
+                    .title("BlitzPay API")
+                    .version("1.0")
+                    .description("BlitzPay Payment Service")
             )
-            .pathsToMatch("/api/**")
-            .build()
-
-
-    @Bean
-    fun actuatorGroup(): GroupedOpenApi =
-        GroupedOpenApi.builder()
-            .group("actuator")
-            .pathsToMatch("/actuator/**")
-            .build()
+            .servers(
+                listOf(
+                    Server().url("http://localhost:8080").description("Local Server"),
+                    Server().url("http://10.0.2.2:8080").description("Android Emulator")
+                )
+            )
+    }
 }

@@ -1,5 +1,6 @@
 package de.elegantsoftware.blitzpay.invoice
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import de.elegantsoftware.blitzpay.product.Product
 import jakarta.persistence.*
 
@@ -18,5 +19,6 @@ data class InvoiceItem(
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "invoice_id")
+    @JsonIgnore
     val invoice: Invoice
 )

@@ -1,7 +1,9 @@
 package de.elegantsoftware.blitzpay.invoice
 
 import de.elegantsoftware.blitzpay.merchant.MerchantRepository
+import de.elegantsoftware.blitzpay.product.Product
 import de.elegantsoftware.blitzpay.product.ProductRepository
+import jakarta.persistence.EntityNotFoundException
 import org.springframework.stereotype.Service
 
 data class InvoiceItemRequest(
@@ -22,30 +24,58 @@ class InvoiceService(
     private val productRepository: ProductRepository
 ) {
 
-    fun create(request: CreateInvoiceRequest): Invoice {
-        val merchant = merchantRepository.findById(request.merchantId).orElseThrow()
+//    fun create(request: CreateInvoiceRequest): Invoice {
+//        val merchant = merchantRepository.findById(request.merchantId).orElseThrow()
+//
+//        val invoice = invoiceRepository.save(
+//            Invoice(
+//                merchant = merchant
+//            )
+//        )
+//
+//        val invoiceItems = request.items.map { item ->
+//            val product = productRepository.findById(item.productId).orElseThrow()
+//
+//            InvoiceItem(
+//                quantity = item.quantity,
+//                product = product,
+//                invoice = invoice
+//            )
+//        }
+//
+//        invoiceItemRepository.saveAll(invoiceItems)
+//
+//        return invoice.copy(items = invoiceItems)
+//    }
+fun create(request: CreateInvoiceRequest): Invoice {
+    val merchant = merchantRepository.findById(request.merchantId).orElseThrow()
 
-        val invoice = invoiceRepository.save(
-            Invoice(
-                merchant = merchant
-            )
+    val invoice = invoiceRepository.save(
+        Invoice(
+            merchant = merchant
         )
+    )
 
-        val invoiceItems = request.items.map { item ->
-            val product = productRepository.findById(item.productId).orElseThrow()
+    // Fetch all products with their merchants in one query
+    val productIds = request.items.map { it.productId }
+    val products = productRepository.findAllByIdWithMerchant(productIds)
+        .associateBy(Product::productId)
 
-            InvoiceItem(
-                quantity = item.quantity,
-                product = product,
-                invoice = invoice
-            )
-        }
+    val invoiceItems = request.items.map { item ->
+        val product = products[item.productId] ?:
+        throw EntityNotFoundException("Product not found: ${item.productId}")
 
-        invoiceItemRepository.saveAll(invoiceItems)
-
-        return invoice.copy(items = invoiceItems)
+        InvoiceItem(
+            quantity = item.quantity,
+            product = product,
+            invoice = invoice
+        )
     }
 
+    invoiceItemRepository.saveAll(invoiceItems)
+
+    return invoice.copy(items = invoiceItems)
+}
     fun findAll(): List<Invoice> = invoiceRepository.findAll()
 
     fun findById(id: Long): Invoice = invoiceRepository.findById(id).orElseThrow()
