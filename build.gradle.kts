@@ -1,18 +1,18 @@
 plugins {
-    kotlin("jvm") version "2.2.21"
-    kotlin("plugin.spring") version "2.2.21"
-    id("org.springframework.boot") version "4.0.1"
+    kotlin("jvm") version "2.3.0"
+    kotlin("plugin.spring") version "2.3.0"
+    id("org.springframework.boot") version "4.0.2"
     id("io.spring.dependency-management") version "1.1.7"
     kotlin("plugin.jpa") version "2.2.21"
 }
 
-group = "com.example"
+group = "com.elegant.software.blitzpay"
 version = "0.0.1-SNAPSHOT"
-description = "Demo project for Spring Boot"
+description = "BlitzPay"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(24)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
@@ -38,7 +38,7 @@ dependencies {
     implementation("com.truelayer:truelayer-java:17.4.0")
     implementation("com.truelayer:truelayer-signing:0.2.6") // official signing lib
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5") //Idiomatic kotlin logging
-    implementation("com.nimbusds:nimbus-jose-jwt:10.5") // Required for signature verification
+    implementation("com.nimbusds:nimbus-jose-jwt:10.7") // Required for signature verification
 
 
     runtimeOnly("org.postgresql:postgresql")
@@ -67,7 +67,7 @@ dependencyManagement {
 
 kotlin {
     compilerOptions {
-        freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property")
+        freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property","-jvm-target=25",)
     }
 }
 
