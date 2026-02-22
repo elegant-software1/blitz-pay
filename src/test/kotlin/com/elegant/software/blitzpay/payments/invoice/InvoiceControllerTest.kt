@@ -1,5 +1,6 @@
 package com.elegant.software.blitzpay.payments.invoice
 
+import com.elegant.software.blitzpay.config.SecurityConfig
 import com.elegant.software.blitzpay.invoice.InvoiceController
 import com.elegant.software.blitzpay.invoice.api.InvoiceData
 import com.elegant.software.blitzpay.invoice.api.InvoiceService
@@ -7,12 +8,41 @@ import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration
+import org.springframework.boot.security.autoconfigure.web.reactive.ReactiveWebSecurityAutoConfiguration
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.ComponentScan
+import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.FilterType
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
+import org.springframework.security.config.web.server.ServerHttpSecurity
+import org.springframework.security.web.server.SecurityWebFilterChain
+import org.springframework.test.context.TestPropertySource
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.reactive.server.WebTestClient
 
-@WebFluxTest(InvoiceController::class)
+@Configuration
+class InvoiceControllerTestSecurityConfig {
+    @Bean
+    fun invoiceTestSecurityWebFilterChain(http: ServerHttpSecurity): SecurityWebFilterChain {
+        return http
+            .csrf { it.disable() }
+            .authorizeExchange { it.anyExchange().permitAll() }
+            .build()
+    }
+}
+
+@WebFluxTest(
+    controllers = [InvoiceController::class],
+    excludeFilters = [ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = [SecurityConfig::class])]
+)
+@Import(InvoiceControllerTestSecurityConfig::class)
+@ImportAutoConfiguration(ReactiveWebSecurityAutoConfiguration::class)
+@TestPropertySource(properties = [
+    "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://localhost:9999/.well-known/jwks.json"
+])
 class InvoiceControllerTest {
 
     @Autowired

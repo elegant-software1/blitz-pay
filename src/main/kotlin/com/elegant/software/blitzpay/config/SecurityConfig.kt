@@ -2,28 +2,24 @@ package com.elegant.software.blitzpay.config
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.security.config.annotation.web.builders.HttpSecurity
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
-import org.springframework.security.config.http.SessionCreationPolicy
-import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.config.web.server.ServerHttpSecurity
+import org.springframework.security.web.server.SecurityWebFilterChain
 
 @Configuration
-@EnableWebSecurity
 class SecurityConfig {
 
     @Bean
-    fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
-        http
+    fun securityWebFilterChain(http: ServerHttpSecurity): SecurityWebFilterChain {
+        return http
             .csrf { it.disable() }
-            .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
-            .authorizeHttpRequests { auth ->
-                auth
+            .authorizeExchange { exchanges ->
+                exchanges
                     // Allow webhook endpoint (has its own signature verification)
-                    .requestMatchers("/webhooks/**").permitAll()
+                    .pathMatchers("/webhooks/**").permitAll()
                     // Allow actuator endpoints
-                    .requestMatchers("/actuator/**").permitAll()
+                    .pathMatchers("/actuator/**").permitAll()
                     // Allow Swagger/OpenAPI endpoints
-                    .requestMatchers(
+                    .pathMatchers(
                         "/swagger-ui/**",
                         "/swagger-ui.html",
                         "/v3/api-docs/**",
@@ -31,12 +27,11 @@ class SecurityConfig {
                         "/webjars/**"
                     ).permitAll()
                     // All other endpoints require authentication
-                    .anyRequest().authenticated()
+                    .anyExchange().authenticated()
             }
             .oauth2ResourceServer { oauth2 ->
                 oauth2.jwt { }
             }
-
-        return http.build()
+            .build()
     }
 }
