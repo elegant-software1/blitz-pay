@@ -1,35 +1,103 @@
-[versions]
-skillsjars-plugin = "0.0.2"
-kotlin = "2.3.20"
-kotlin-jpa = "2.3.20"
-spring-boot = "4.0.4"
-spring-dependency-management = "1.1.7"
-dr-jskill = "2026_02_19-a951a5e"
-spring-modulith = "2.1.0-M3"
-springdoc = "3.0.2"
-truelayer-java = "17.5.1"
-truelayer-signing = "0.2.6"
-kotlin-logging = "3.0.5"
-nimbus-jose-jwt = "10.8"
-mustang = "2.22.0"
-flying-saucer = "10.1.0"
-mockito-kotlin = "6.3.0"
+# =============================================================================
+# BlitzPay Gradle Version Catalog
+# =============================================================================
 
-[libraries]
-dr-jskill = { module = "com.skillsjars:jdubois__dr-jskill", version.ref = "dr-jskill" }
-springdoc-openapi-starter-webflux-ui = { module = "org.springdoc:springdoc-openapi-starter-webflux-ui", version.ref = "springdoc" }
-truelayer-java = { module = "com.truelayer:truelayer-java", version.ref = "truelayer-java" }
-truelayer-signing = { module = "com.truelayer:truelayer-signing", version.ref = "truelayer-signing" }
-kotlin-logging-jvm = { module = "io.github.microutils:kotlin-logging-jvm", version.ref = "kotlin-logging" }
-nimbus-jose-jwt = { module = "com.nimbusds:nimbus-jose-jwt", version.ref = "nimbus-jose-jwt" }
-mustang-library = { module = "org.mustangproject:library", version.ref = "mustang" }
-flying-saucer-pdf = { module = "org.xhtmlrenderer:flying-saucer-pdf", version.ref = "flying-saucer" }
-mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockito-kotlin" }
-
+# -----------------------------------------------------------------------------
+# [Plugins] - Build & Development Tools
+# -----------------------------------------------------------------------------
 [plugins]
-skillsjars = { id = "com.skillsjars.gradle-plugin", version.ref = "skillsjars-plugin" }
-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
-kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
-kotlin-jpa = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin-jpa" }
-spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+# Core platform plugins
+skillsjars           = { id = "com.skillsjars.gradle-plugin", version.ref = "skillsjars-plugin" }
+kotlin-jvm           = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-spring        = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+kotlin-jpa           = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin-jpa" }
+# Spring platform plugins
+spring-boot          = { id = "org.springframework.boot", version.ref = "spring-boot" }
 spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }
+# Security & quality plugins
+cyclonedx            = { id = "org.cyclonedx.bom", version.ref = "cyclonedx" }
+dependency-track     = { id = "com.liftric.dependency-track-companion-plugin", version.ref = "dependency-track" }
+
+# -----------------------------------------------------------------------------
+# [Versions] - Dependency Version Definitions
+# -----------------------------------------------------------------------------
+[versions]
+# Platform & Core
+skillsjars-plugin    = "0.0.2"
+kotlin               = "2.3.20"
+kotlin-jpa           = "2.3.20"
+spring-boot          = "4.0.4"
+spring-dependency-management = "1.1.7"
+spring-modulith      = "2.1.0-M3"
+
+# Modulith: invoice - ZUGFeRD/Factur-X invoice XML + Thymeleaf->PDF rendering
+mustang              = "2.22.0"
+flying-saucer        = "10.1.0"
+
+# Modulith: payments - TrueLayer payment integration
+truelayer-java       = "17.5.1"
+truelayer-signing    = "0.2.6"
+nimbus-jose-jwt      = "10.8"
+
+# Shared platform - logging, documentation, testing
+kotlin-logging       = "3.0.5"
+springdoc            = "3.0.2"
+mockito-kotlin       = "6.3.0"
+
+# Optional runtime integrations
+dr-jskill            = "2026_02_19-a951a5e"
+
+# Security scanning / SBOM + Dependency-Track upload
+cyclonedx            = "3.2.0"
+dependency-track     = "1.4.4"
+
+# -----------------------------------------------------------------------------
+# [Libraries] - Dependency Declarations Organized by Module
+# -----------------------------------------------------------------------------
+[libraries]
+# -----------------------------------------------------------------------------
+# Optional: SkillsJars runtime integration
+# Purpose: External skills/runtime features (conditional inclusion)
+# -----------------------------------------------------------------------------
+dr-jskill            = { module = "com.skillsjars:jdubois__dr-jskill", version.ref = "dr-jskill" }
+
+# -----------------------------------------------------------------------------
+# Modulith: `invoice`
+# Purpose: ZUGFeRD/Factur-X invoice XML + Thymeleaf->PDF rendering
+# -----------------------------------------------------------------------------
+mustang-library      = { module = "org.mustangproject:library", version.ref = "mustang" }
+flying-saucer-pdf    = { module = "org.xhtmlrenderer:flying-saucer-pdf", version.ref = "flying-saucer" }
+
+# -----------------------------------------------------------------------------
+# Modulith: `payments` (TrueLayer + QRPay)
+# Purpose: payment webhooks/signatures + SSE payment updates
+# -----------------------------------------------------------------------------
+truelayer-java       = { module = "com.truelayer:truelayer-java", version.ref = "truelayer-java" }
+truelayer-signing    = { module = "com.truelayer:truelayer-signing", version.ref = "truelayer-signing" }
+nimbus-jose-jwt      = { module = "com.nimbusds:nimbus-jose-jwt", version.ref = "nimbus-jose-jwt" }
+kotlin-logging-jvm   = { module = "io.github.microutils:kotlin-logging-jvm", version.ref = "kotlin-logging" }
+
+# -----------------------------------------------------------------------------
+# Shared platform (all Modulith modules)
+# Purpose: web/http, JSON, Modulith runtime, OpenAPI documentation
+# NOTE: Spring Boot BOM manages versions for spring-boot-starter-* dependencies
+# -----------------------------------------------------------------------------
+# Spring Boot starters (version managed by Spring Boot BOM)
+spring-boot-starter-webflux = { module = "org.springframework.boot:spring-boot-starter-webflux" }
+spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
+spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+spring-boot-starter-thymeleaf = { module = "org.springframework.boot:spring-boot-starter-thymeleaf" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-boot-starter-actuator-test = { module = "org.springframework.boot:spring-boot-starter-actuator-test" }
+spring-boot-starter-data-jpa-test = { module = "org.springframework.boot:spring-boot-starter-data-jpa-test" }
+spring-boot-starter-webflux-test = { module = "org.springframework.boot:spring-boot-starter-webflux-test" }
+spring-boot-testcontainers = { module = "org.springframework.boot:spring-boot-testcontainers" }
+
+# Third-party libraries (explicit versions required)
+springdoc-openapi-starter-webflux-ui = { module = "org.springdoc:springdoc-openapi-starter-webflux-ui", version.ref = "springdoc" }
+
+# -----------------------------------------------------------------------------
+# Tests (shared across all modules)
+# Purpose: unit testing, integration testing, mocking
+# -----------------------------------------------------------------------------
+mockito-kotlin       = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockito-kotlin" }

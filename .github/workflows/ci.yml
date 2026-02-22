@@ -28,3 +28,21 @@ jobs:
         gradle-args: ${{ inputs.gradle-args }}
         unit-test-task: test
         integration-test-task: help
+
+  qodana_code_quality:
+    name: qodana
+    needs: test
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: write
+    uses: medimohammadise/elegant-ci-cd-pipeline/.github/workflows/backend-qa-qodana-code-quality.yml@main
+    secrets: inherit
+
+  sbom-upload:
+    name: dependency track & SBOM upload
+    needs: test
+    permissions:
+      contents: read
+    uses: medimohammadise/elegant-ci-cd-pipeline/.github/workflows/backnd-qa-dependency-track-upload.yml@main
+    secrets: inherit

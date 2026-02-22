@@ -1,0 +1,17 @@
+.git
+.github
+.gradle
+.idea
+.vscode
+build
+out
+coverage
+node_modules
+*.log*
+.env*
+*.pem
+*.key
+*.tmp
+.DS_Store
+Dockerfile*
+.dockerignore

@@ -176,7 +176,7 @@ jobs:
 - `truelayer-client-id` (optional): TrueLayer client ID
 - `truelayer-client-secret` (optional): TrueLayer client secret
 
-### 4. CI/CD Pipeline (`ci-cd.yml`)
+### 6. CI/CD Pipeline (`ci-cd.yml`)
 
 Main CI/CD pipeline that orchestrates all workflows.
 
@@ -186,6 +186,7 @@ Main CI/CD pipeline that orchestrates all workflows.
 - Automatic deployment to staging on main/master branch
 - Manual deployment to production via workflow_dispatch
 - Environment-specific configuration
+- Optional SBOM upload to Dependency-Track when `DTRACK_URL` and `DTRACK_API_KEY` secrets are provided
 
 **Triggers:**
 - Push to main, master, or develop branches
@@ -216,6 +217,11 @@ Configure the following secrets in your GitHub repository:
 - `TRUELAYER_CLIENT_ID_PROD`: TrueLayer client ID for production
 - `TRUELAYER_CLIENT_SECRET_PROD`: TrueLayer client secret for production
 
+#### Dependency-Track (Optional)
+- `DTRACK_URL`: Dependency-Track base URL for BOM uploads (e.g., `https://dependency-track.example.com`)
+- `DTRACK_API_KEY`: API key with permission to POST to `/api/v1/bom`
+- `DTRACK_PROJECT_NAME` (optional): Overrides `projectName` in Dependency-Track (defaults to `${{ github.repository }}`)
+- `DTRACK_PROJECT_VERSION` (optional): Overrides `projectVersion` (defaults to `${{ github.sha }}`)
 ### 2. Prepare Kubeconfig
 
 To encode your kubeconfig:

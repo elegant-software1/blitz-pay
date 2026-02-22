@@ -11,7 +11,7 @@ The project uses reusable GitHub Actions workflows to automate testing, building
 1. **Test** (`.github/workflows/test.yml`) - Runs tests with PostgreSQL
 2. **Build** (`.github/workflows/build.yml`) - Builds Docker image and pushes to GitHub Container Registry
 3. **Deploy** (`.github/workflows/deploy.yml`) - Deploys to Kubernetes using Arconia library
-4. **CI/CD** (`.github/workflows/ci-cd.yml`) - Main pipeline orchestrating all workflows
+4. **CI/CD** (`.github/workflows/ci-cd.yml`) - Main pipeline orchestrating all workflows and optionally uploading a CycloneDX SBOM to Dependency-Track when the necessary secrets are configured
 
 ## Quick Start
 
@@ -36,6 +36,15 @@ Go to `Settings > Secrets and variables > Actions` and add:
 - `DATABASE_URL_PROD`
 - `TRUELAYER_CLIENT_ID_PROD`
 - `TRUELAYER_CLIENT_SECRET_PROD`
+
+#### Security Scanning (Optional)
+- `DTRACK_URL` - Base URL for your Dependency-Track instance (e.g., `https://dependency-track.example.com`)
+- `DTRACK_API_KEY` - API key with permission to upload BOMs via `/api/v1/bom`
+- `DTRACK_PROJECT_NAME` (optional) - Overrides the `projectName` field sent to Dependency-Track (defaults to `${{ github.repository }}`)
+- `DTRACK_PROJECT_VERSION` (optional) - Overrides the `projectVersion` field (defaults to `${{ github.sha }}`)
+
+### Dependency-Track SBOM Upload
+The CI/CD pipeline runs a job that executes `./gradlew cyclonedxBom` and uploads the resulting `build/reports/cyclonedx/bom.xml` to Dependency-Track when `DTRACK_URL` and `DTRACK_API_KEY` are set in your repository secrets. The upload POSTs to `<DTRACK_URL>/api/v1/bom` with `autoCreate=true`, `projectName`/`projectVersion` defaults as noted above, and the SBOM attached via multipart/form-data.
 
 ### 2. Prepare Kubeconfig Secret
 

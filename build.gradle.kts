@@ -1,4 +1,5 @@
 import org.springframework.boot.gradle.tasks.bundling.BootJar
+
 plugins {
     alias(libs.plugins.skillsjars)
     alias(libs.plugins.kotlin.jvm)
@@ -6,6 +7,8 @@ plugins {
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dependency.management)
     alias(libs.plugins.kotlin.jpa)
+    alias(libs.plugins.cyclonedx)
+    alias(libs.plugins.dependency.track)
 }
 
 group = "com.elegant.software.blitzpay"
@@ -50,15 +53,37 @@ repositories {
 
 dependencies {
     if (providers.gradleProperty("includeSkillsJars").map(String::toBoolean).orElse(false).get()) {
+        // Optional: `com.skillsjars:jdubois__dr-jskill` runtime integration
         runtimeOnly(libs.dr.jskill)
     }
-    implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    implementation("org.springframework.boot:spring-boot-starter-webflux")
+    // ----------------------------
+    // Modulith: `invoice`
+    // Purpose: ZUGFeRD/Factur-X invoice XML + Thymeleaf->PDF rendering
+    // ----------------------------
+    implementation(libs.mustang.library)
+    implementation(libs.spring.boot.starter.thymeleaf)
+    implementation(libs.flying.saucer.pdf)
+
+    // ----------------------------
+    // Modulith: `payments` (TrueLayer + QRPay)
+    // Purpose: payment webhooks/signatures + SSE payment updates
+    // ----------------------------
+    implementation(libs.truelayer.java)
+    implementation(libs.truelayer.signing) // TrueLayer official signing lib
+    implementation(libs.nimbus.jose.jwt) // webhook signature verification
+    implementation(libs.kotlin.logging.jvm) // Idiomatic kotlin logging (mu.KotlinLogging)
     implementation("io.projectreactor.kotlin:reactor-kotlin-extensions")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
+
+    // ----------------------------
+    // Shared platform (all Modulith modules)
+    // Purpose: web/http, JSON, Modulith runtime, OpenAPI
+    // ----------------------------
+    implementation(libs.spring.boot.starter.actuator)
+    implementation(libs.spring.boot.starter.data.jpa)
+    implementation(libs.spring.boot.starter.webflux)
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
     implementation("org.springframework.modulith:spring-modulith-starter-core")
     implementation("org.springframework.modulith:spring-modulith-starter-jpa")
     implementation(libs.springdoc.openapi.starter.webflux.ui)
@@ -74,14 +99,21 @@ dependencies {
     // Flying Saucer – converts Thymeleaf-rendered HTML to PDF
     implementation(libs.flying.saucer.pdf)
 
+    // ----------------------------
+    // Runtime support (used across modules)
+    // ----------------------------
     runtimeOnly("org.postgresql:postgresql")
     runtimeOnly("org.springframework.modulith:spring-modulith-actuator")
     runtimeOnly("org.springframework.modulith:spring-modulith-observability")
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
-    testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
-    testImplementation("org.springframework.boot:spring-boot-starter-webflux-test")
-    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+
+    // ----------------------------
+    // Tests (shared)
+    // ----------------------------
+    testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.spring.boot.starter.actuator.test)
+    testImplementation(libs.spring.boot.starter.data.jpa.test)
+    testImplementation(libs.spring.boot.starter.webflux.test)
+    testImplementation(libs.spring.boot.testcontainers)
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test")
     testImplementation("org.springframework.modulith:spring-modulith-starter-test")
@@ -132,4 +164,18 @@ tasks.register<Test>("contractTest") {
 
 tasks.named("check") {
     dependsOn("contractTest")
+}
+
+
+
+tasks.named<org.cyclonedx.gradle.CyclonedxAggregateTask>("cyclonedxBom") {
+    jsonOutput.set(layout.buildDirectory.file("reports/cyclonedx/bom.json"))
+}
+
+dependencyTrackCompanion {
+    url.set(providers.gradleProperty("dependencyTrackUrl").orElse(System.getenv("DT_URL") ?: ""))
+    apiKey.set(providers.gradleProperty("dependencyTrackApiKey").orElse(System.getenv("DT_API_KEY") ?: ""))
+    projectName.set(project.name)
+    projectVersion.set(project.version.toString())
+    autoCreate.set(true)
 }
