@@ -39,6 +39,8 @@ dependencies {
     implementation("com.truelayer:truelayer-signing:${property("truelayerSigningVersion")}") // official signing lib
     implementation("io.github.microutils:kotlin-logging-jvm:${property("kotlinLoggingVersion")}") //Idiomatic kotlin logging
     implementation("com.nimbusds:nimbus-jose-jwt:${property("nimbusJoseJwtVersion")}") // Required for signature verification
+    implementation("com.google.zxing:core:${property("zxingVersion")}")          // QR-code generation
+    implementation("com.google.zxing:javase:${property("zxingVersion")}")        // QR-code image rendering
     // Mustang Project – EU-standard ZUGFeRD / Factur-X invoice generation
     implementation("org.mustangproject:library:${property("mustangVersion")}")
     // Thymeleaf templating engine for invoice PDF rendering
