@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.elegant.software.blitzpay"
-version = "0.2.1"
+version = "0.2.2"
 description = "BlitzPay"
 
 java {
