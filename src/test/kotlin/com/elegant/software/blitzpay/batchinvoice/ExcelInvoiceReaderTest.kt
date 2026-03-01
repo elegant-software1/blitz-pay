@@ -1,4 +1,4 @@
-package com.elegant.software.blitzpay.invoiceagent
+package com.elegant.software.blitzpay.batchinvoice
 
 import com.elegant.software.blitzpay.invoice.api.InvoiceService
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
@@ -8,14 +8,14 @@ import java.io.FileOutputStream
 import java.nio.file.Files
 import kotlin.test.assertEquals
 
-class ExcelInvoiceAgentToolsTest {
+class ExcelInvoiceReaderTest {
 
     private val invoiceService: InvoiceService = mock()
-    private val tools = ExcelInvoiceAgentTools(invoiceService)
+    private val reader = ExcelInvoiceReader(invoiceService)
 
     @Test
     fun `reads invoice rows from excel`() {
-        val tempFile = Files.createTempFile("invoice-agent", ".xlsx").toFile()
+        val tempFile = Files.createTempFile("batch-invoice", ".xlsx").toFile()
 
         XSSFWorkbook().use { workbook ->
             val sheet = workbook.createSheet("Invoices")
@@ -46,7 +46,7 @@ class ExcelInvoiceAgentToolsTest {
             FileOutputStream(tempFile).use { workbook.write(it) }
         }
 
-        val rows = tools.readInvoiceRows(tempFile.absolutePath)
+        val rows = reader.readInvoiceRows(tempFile.absolutePath)
 
         assertEquals(1, rows.size)
         assertEquals("INV-100", rows.first().invoiceNumber)

@@ -1,10 +1,9 @@
-package com.elegant.software.blitzpay.invoiceagent
+package com.elegant.software.blitzpay.batchinvoice
 
 import com.elegant.software.blitzpay.invoice.api.InvoiceData
 import com.elegant.software.blitzpay.invoice.api.InvoiceLineItem
 import com.elegant.software.blitzpay.invoice.api.InvoiceService
 import com.elegant.software.blitzpay.invoice.api.TradePartyData
-import dev.langchain4j.agent.tool.Tool
 import org.apache.poi.ss.usermodel.DataFormatter
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.springframework.http.HttpStatus
@@ -27,17 +26,17 @@ import java.time.LocalDate
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-enum class AgentRunState {
+enum class BatchRunState {
     PENDING,
     RUNNING,
     COMPLETED,
     FAILED
 }
 
-data class AgentRunStatus(
+data class BatchRunStatus(
     val runId: UUID,
     val filePath: String,
-    val state: AgentRunState,
+    val state: BatchRunState,
     val startedAt: Instant,
     val endedAt: Instant? = null,
     val processedRows: Int = 0,
@@ -45,18 +44,22 @@ data class AgentRunStatus(
     val error: String? = null
 )
 
-data class StartAgentRequest(
+data class StartBatchRequest(
     val filePath: String
 )
 
+/**
+ * Reads invoice rows from an Excel file and maps each row to an [InvoiceData] record.
+ *
+ * This is a plain Spring component with no AI/agent dependency — all logic is deterministic.
+ */
 @Component
-class ExcelInvoiceAgentTools(
+class ExcelInvoiceReader(
     private val invoiceService: InvoiceService
 ) {
 
     private val formatter = DataFormatter()
 
-    @Tool("Read invoice rows from an Excel file and transform them to InvoiceData records")
     fun readInvoiceRows(filePath: String): List<InvoiceData> {
         val path = Path.of(filePath)
         require(Files.exists(path)) { "Excel file does not exist: $filePath" }
@@ -107,8 +110,7 @@ class ExcelInvoiceAgentTools(
         }
     }
 
-    @Tool("Create invoice XML and PDF using the invoice module")
-    fun createInvoice(invoiceData: InvoiceData) {
+    fun generateInvoice(invoiceData: InvoiceData) {
         invoiceService.generateXml(invoiceData)
         invoiceService.generatePdf(invoiceData)
     }
@@ -124,31 +126,38 @@ class ExcelInvoiceAgentTools(
     }
 }
 
+/**
+ * Orchestrates batch invoice generation runs.
+ *
+ * Each run reads all rows from an Excel file and generates XML + PDF invoices
+ * for every row. Runs are executed on a virtual thread so the REST call returns
+ * immediately with [BatchRunState.PENDING]; callers poll the status endpoint.
+ */
 @Service
-class ExcelInvoiceAgentService(
-    private val tools: ExcelInvoiceAgentTools
+class BatchInvoiceService(
+    private val reader: ExcelInvoiceReader
 ) {
 
-    private val runs = ConcurrentHashMap<UUID, AgentRunStatus>()
+    private val runs = ConcurrentHashMap<UUID, BatchRunStatus>()
 
-    fun start(filePath: String): AgentRunStatus {
+    fun start(filePath: String): BatchRunStatus {
         val runId = UUID.randomUUID()
         val now = Instant.now()
-        runs[runId] = AgentRunStatus(
+        runs[runId] = BatchRunStatus(
             runId = runId,
             filePath = filePath,
-            state = AgentRunState.PENDING,
+            state = BatchRunState.PENDING,
             startedAt = now
         )
 
         Thread.startVirtualThread {
-            runs.computeIfPresent(runId) { _, existing -> existing.copy(state = AgentRunState.RUNNING) }
+            runs.computeIfPresent(runId) { _, existing -> existing.copy(state = BatchRunState.RUNNING) }
             try {
-                val rows = tools.readInvoiceRows(filePath)
-                rows.forEach { tools.createInvoice(it) }
+                val rows = reader.readInvoiceRows(filePath)
+                rows.forEach { reader.generateInvoice(it) }
                 runs.computeIfPresent(runId) { _, existing ->
                     existing.copy(
-                        state = AgentRunState.COMPLETED,
+                        state = BatchRunState.COMPLETED,
                         endedAt = Instant.now(),
                         processedRows = rows.size,
                         createdInvoices = rows.size
@@ -157,7 +166,7 @@ class ExcelInvoiceAgentService(
             } catch (ex: Exception) {
                 runs.computeIfPresent(runId) { _, existing ->
                     existing.copy(
-                        state = AgentRunState.FAILED,
+                        state = BatchRunState.FAILED,
                         endedAt = Instant.now(),
                         error = ex.message
                     )
@@ -168,25 +177,25 @@ class ExcelInvoiceAgentService(
         return runs.getValue(runId)
     }
 
-    fun getStatus(runId: UUID): AgentRunStatus {
+    fun getStatus(runId: UUID): BatchRunStatus {
         return runs[runId] ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Run $runId not found")
     }
 }
 
 @RestController
-@RequestMapping("/v1/agents/invoice")
-class InvoiceAgentController(
-    private val excelInvoiceAgentService: ExcelInvoiceAgentService
+@RequestMapping("/v1/batch/invoices", version = "1")
+class BatchInvoiceController(
+    private val batchInvoiceService: BatchInvoiceService
 ) {
 
     @PostMapping
-    fun startAgent(@RequestBody request: StartAgentRequest): ResponseEntity<AgentRunStatus> {
-        val run = excelInvoiceAgentService.start(request.filePath)
+    fun startBatch(@RequestBody request: StartBatchRequest): ResponseEntity<BatchRunStatus> {
+        val run = batchInvoiceService.start(request.filePath)
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(run)
     }
 
     @GetMapping("/{runId}")
-    fun getRun(@PathVariable runId: UUID): AgentRunStatus {
-        return excelInvoiceAgentService.getStatus(runId)
+    fun getStatus(@PathVariable runId: UUID): BatchRunStatus {
+        return batchInvoiceService.getStatus(runId)
     }
 }

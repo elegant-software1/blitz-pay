@@ -1,4 +1,9 @@
-package com.elegant.software.blitzpay.invoiceagent
+package com.elegant.software.blitzpay.payments.batchinvoice
+
+import com.elegant.software.blitzpay.batchinvoice.BatchInvoiceController
+import com.elegant.software.blitzpay.batchinvoice.BatchInvoiceService
+import com.elegant.software.blitzpay.batchinvoice.BatchRunState
+import com.elegant.software.blitzpay.batchinvoice.BatchRunStatus
 
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -10,29 +15,29 @@ import java.time.Instant
 import java.util.UUID
 import org.mockito.kotlin.whenever
 
-@WebFluxTest(InvoiceAgentController::class)
-class InvoiceAgentControllerTest {
+@WebFluxTest(BatchInvoiceController::class)
+class BatchInvoiceControllerTest {
 
     @Autowired
     private lateinit var webTestClient: WebTestClient
 
     @MockitoBean
-    private lateinit var excelInvoiceAgentService: ExcelInvoiceAgentService
+    private lateinit var batchInvoiceService: BatchInvoiceService
 
     @Test
-    fun `POST starts agent run`() {
+    fun `POST starts batch run`() {
         val runId = UUID.randomUUID()
-        whenever(excelInvoiceAgentService.start("/tmp/invoices.xlsx")).thenReturn(
-            AgentRunStatus(
+        whenever(batchInvoiceService.start("/tmp/invoices.xlsx")).thenReturn(
+            BatchRunStatus(
                 runId = runId,
                 filePath = "/tmp/invoices.xlsx",
-                state = AgentRunState.PENDING,
+                state = BatchRunState.PENDING,
                 startedAt = Instant.now()
             )
         )
 
         webTestClient.post()
-            .uri("/v1/agents/invoice")
+            .uri("/v1/batch/invoices")
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue("""{"filePath":"/tmp/invoices.xlsx"}""")
             .exchange()

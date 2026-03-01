@@ -45,7 +45,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
     // Flying Saucer – converts Thymeleaf-rendered HTML to PDF
     implementation("org.xhtmlrenderer:flying-saucer-pdf:${property("flyingSaucerVersion")}")
-    implementation("dev.langchain4j:langchain4j:1.8.0")
     implementation("org.apache.poi:poi-ooxml:5.4.1")
 
 
