@@ -12,7 +12,7 @@ class InvoiceOpenApiConfig {
     @Bean
     fun invoiceApi(): GroupedOpenApi =
         GroupedOpenApi.builder()
-            .group("Invoice V1")
+            .group("InvoiceV1")
             .packagesToScan(InvoiceController::class.java.packageName)
             .pathsToMatch("/v1/invoices/**")
             .addOpenApiCustomizer { openApi: OpenAPI ->

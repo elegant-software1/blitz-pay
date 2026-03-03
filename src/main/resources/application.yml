@@ -37,13 +37,23 @@ management:
     metrics:
       enabled: true
 springdoc:
+  api-docs:
+    path: /v1/api-docs
   show-actuator: true
   swagger-ui:
     urls:
-      - name: Invoice
-        url: /v3/api-docs/Invoice
-      - name: QRPay
-        url: /v3/api-docs/QRPay
+      - name: InvoiceV1
+        url: /v1/api-docs/InvoiceV1
+      - name: QRPayV1
+        url: /v1/api-docs/QRPayV1
+      - name: Support
+        url: /v1/api-docs/Support
+      - name: TrueLayerV1
+        url: /v1/api-docs/TrueLayerV1
+      - name: General
+        url: /v1/api-docs/General
+      - name: Actuator
+        url: /v1/api-docs/Actuator
 truelayer:
   apiBase: ${TRUELAYER_API_BASE:https://api.truelayer-sandbox.com}
   accessToken: ${TRUELAYER_ACCESS_TOKEN:dummy-access-token}

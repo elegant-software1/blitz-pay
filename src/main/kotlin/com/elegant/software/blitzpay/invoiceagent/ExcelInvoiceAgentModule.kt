@@ -4,7 +4,6 @@ import com.elegant.software.blitzpay.invoice.api.InvoiceData
 import com.elegant.software.blitzpay.invoice.api.InvoiceLineItem
 import com.elegant.software.blitzpay.invoice.api.InvoiceService
 import com.elegant.software.blitzpay.invoice.api.TradePartyData
-import dev.langchain4j.agent.tool.Tool
 import org.apache.poi.ss.usermodel.DataFormatter
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.springframework.http.HttpStatus
@@ -56,7 +55,6 @@ class ExcelInvoiceAgentTools(
 
     private val formatter = DataFormatter()
 
-    @Tool("Read invoice rows from an Excel file and transform them to InvoiceData records")
     fun readInvoiceRows(filePath: String): List<InvoiceData> {
         val path = Path.of(filePath)
         require(Files.exists(path)) { "Excel file does not exist: $filePath" }
@@ -107,7 +105,6 @@ class ExcelInvoiceAgentTools(
         }
     }
 
-    @Tool("Create invoice XML and PDF using the invoice module")
     fun createInvoice(invoiceData: InvoiceData) {
         invoiceService.generateXml(invoiceData)
         invoiceService.generatePdf(invoiceData)
