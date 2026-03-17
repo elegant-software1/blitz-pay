@@ -73,3 +73,30 @@ If you'd like, I can also:
 - add a `.env.example` file (non-sensitive) to the repo,
 - add `.gitignore` entries for the private key and `.env`, or
 - create a small Gradle task or startup script that loads the `.env` file securely.
+
+## A2A Protocol support (native Embabel transport)
+
+BlitzPay now uses Embabel's native remote transport modules for A2A and MCP instead of custom controller-level A2A endpoints.
+
+### What was changed
+
+- Added native Embabel modules:
+  - `com.embabel.agent:embabel-agent-a2a`
+  - `com.embabel.agent:embabel-agent-mcp`
+- Added an `a2a` Spring profile (`application-a2a.yml`) that enables A2A and MCP transport support.
+- Invoice goals already declared with `@AchievesGoal` in `InvoiceAgent` are now the goals exported remotely through Embabel when the profile is active.
+
+### How to run with A2A + MCP enabled
+
+```bash
+SPRING_PROFILES_ACTIVE=a2a ./gradlew bootRun
+```
+
+You can combine with other profiles as needed, e.g. `SPRING_PROFILES_ACTIVE=a2a,dev`.
+
+## Embabel version check
+
+The project is currently pinned to `embabelAgentVersion=0.3.3`.
+
+I attempted a dynamic latest-version check via Gradle dependency resolution, but repository metadata access is blocked in this execution environment (HTTP 403), so a safe, verified upgrade could not be completed automatically here.
+

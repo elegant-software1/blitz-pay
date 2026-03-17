@@ -1,12 +1,8 @@
 package com.elegant.software.blitzpay.payments.agent
 
 import com.elegant.software.blitzpay.agent.AgentController
-
-import com.elegant.software.blitzpay.agent.api.AgentInfo
-import com.embabel.agent.core.Action
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
-import com.embabel.agent.core.Goal
 import com.embabel.common.core.types.Semver
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.whenever
@@ -36,7 +32,7 @@ class AgentControllerTest {
             goals = emptySet(),
             conditions = emptySet()
         )
-        
+
         whenever(agentPlatform.agents()).thenReturn(listOf(mockAgent))
 
         webTestClient.get()
@@ -63,7 +59,7 @@ class AgentControllerTest {
             goals = emptySet(),
             conditions = emptySet()
         )
-        
+
         whenever(agentPlatform.agents()).thenReturn(listOf(mockAgent))
 
         webTestClient.get()

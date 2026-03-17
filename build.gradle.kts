@@ -51,6 +51,9 @@ dependencies {
     // Embabel Agent Framework for AI-powered invoice agents
     implementation("com.embabel.agent:embabel-agent-starter:${property("embabelAgentVersion")}")
     implementation("com.embabel.agent:embabel-agent-starter-openai:${property("embabelAgentVersion")}")
+    // Native A2A + MCP transport support (activated via Spring profiles)
+    implementation("com.embabel.agent:embabel-agent-a2a:${property("embabelAgentVersion")}")
+    implementation("com.embabel.agent:embabel-agent-mcp:${property("embabelAgentVersion")}")
 
 
     runtimeOnly("org.postgresql:postgresql")
