@@ -3,6 +3,7 @@ package com.elegant.software.blitzpay.invoice.config
 import com.elegant.software.blitzpay.config.ApiVersionProperties
 import com.elegant.software.blitzpay.config.rewriteVersionPaths
 import com.elegant.software.blitzpay.invoice.InvoiceController
+import io.swagger.v3.oas.models.ExternalDocumentation
 import io.swagger.v3.oas.models.info.Info
 import org.springdoc.core.models.GroupedOpenApi
 import org.springframework.context.annotation.Bean
@@ -20,6 +21,9 @@ class InvoiceOpenApiConfig(private val apiVersionProperties: ApiVersionPropertie
             .addOpenApiCustomizer { openApi ->
                 openApi.info = Info().title("BlitzPay — Invoice API").version("v${apiVersionProperties.versions.invoice}")
                 openApi.paths = rewriteVersionPaths(openApi.paths, apiVersionProperties.versions.invoice)
+                openApi.externalDocs = ExternalDocumentation()
+                    .description("Invoice OpenAPI schema")
+                    .url("/api-docs/Invoice")
             }
             .build()
 }

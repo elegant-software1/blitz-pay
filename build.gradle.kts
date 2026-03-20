@@ -87,17 +87,17 @@ dependencies {
     implementation("org.springframework.modulith:spring-modulith-starter-core")
     implementation("org.springframework.modulith:spring-modulith-starter-jpa")
     implementation(libs.springdoc.openapi.starter.webflux.ui)
-    // TrueLayer Java SDK
-    implementation(libs.truelayer.java)
-    implementation(libs.truelayer.signing) // official signing lib
-    implementation(libs.kotlin.logging.jvm) //Idiomatic kotlin logging
-    implementation(libs.nimbus.jose.jwt) // Required for signature verification
-    // Mustang Project – EU-standard ZUGFeRD / Factur-X invoice generation
-    implementation(libs.mustang.library)
-    // Thymeleaf templating engine for invoice PDF rendering
-    implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
-    // Flying Saucer – converts Thymeleaf-rendered HTML to PDF
-    implementation(libs.flying.saucer.pdf)
+
+    // ----------------------------
+    // Modulith: `marketsearch`
+    // Purpose: provider-backed live search discovery and retailer-page structured data extraction
+    // ----------------------------
+    implementation(libs.jsoup.html.parser)
+    implementation(libs.koog.agents)
+    implementation(libs.koog.a2a.server)
+    implementation(libs.koog.agents.feature.a2a.server)
+    implementation(libs.koog.a2a.transport.server.jsonrpc.http)
+    implementation(libs.ktor.server.netty)
 
     // ----------------------------
     // Runtime support (used across modules)

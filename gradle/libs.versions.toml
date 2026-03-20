@@ -44,6 +44,11 @@ kotlin-logging       = "3.0.5"
 springdoc            = "3.0.2"
 mockito-kotlin       = "6.3.0"
 
+# Modulith: marketsearch - provider-backed live web discovery and HTML parsing
+jsoup                = "1.21.2"
+koog-agents          = "0.6.1"
+ktor                 = "3.2.2"
+
 # Optional runtime integrations
 dr-jskill            = "2026_02_19-a951a5e"
 
@@ -95,6 +100,17 @@ spring-boot-testcontainers = { module = "org.springframework.boot:spring-boot-te
 
 # Third-party libraries (explicit versions required)
 springdoc-openapi-starter-webflux-ui = { module = "org.springdoc:springdoc-openapi-starter-webflux-ui", version.ref = "springdoc" }
+
+# -----------------------------------------------------------------------------
+# Modulith: `marketsearch`
+# Purpose: provider-backed live search discovery and retailer-page structured data extraction
+# -----------------------------------------------------------------------------
+jsoup-html-parser    = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+koog-agents          = { module = "ai.koog:koog-agents", version.ref = "koog-agents" }
+koog-a2a-server      = { module = "ai.koog:a2a-server", version.ref = "koog-agents" }
+koog-agents-feature-a2a-server = { module = "ai.koog:agents-features-a2a-server", version.ref = "koog-agents" }
+koog-a2a-transport-server-jsonrpc-http = { module = "ai.koog:a2a-transport-server-jsonrpc-http", version.ref = "koog-agents" }
+ktor-server-netty    = { module = "io.ktor:ktor-server-netty", version.ref = "ktor" }
 
 # -----------------------------------------------------------------------------
 # Tests (shared across all modules)

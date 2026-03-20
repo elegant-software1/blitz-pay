@@ -1,0 +1,22 @@
+{
+  "web": {
+    "results": [
+      {
+        "title": "Sony WH-1000XM5 Wireless Noise Canceling Headphones",
+        "url": "https://example.test/offers/sony-wh1000xm5-techhub",
+        "description": "TechHub offer for Sony WH-1000XM5",
+        "meta_url": {
+          "display_url": "example.test/offers/sony-wh1000xm5-techhub"
+        }
+      },
+      {
+        "title": "Sony WH-1000XM5 Wireless Noise Canceling Headphones",
+        "url": "https://example.test/offers/sony-wh1000xm5-audiodeals",
+        "description": "AudioDeals offer for Sony WH-1000XM5",
+        "meta_url": {
+          "display_url": "example.test/offers/sony-wh1000xm5-audiodeals"
+        }
+      }
+    ]
+  }
+}

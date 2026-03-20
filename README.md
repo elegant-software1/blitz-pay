@@ -42,6 +42,13 @@ Follow the steps on that page to create and manage your keys; then place your pr
 
 The application expects the following environment variables to be set before running. Use the placeholders below and replace them with your actual credentials and key path.
 
+Database startup defaults:
+- `SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/blitzpay_db`
+- `SPRING_DATASOURCE_USERNAME=postgres`
+- `SPRING_DATASOURCE_PASSWORD=postgres`
+
+When startup fails, the application prints a focused diagnostics block with failure category and remediation hints (for example: configuration binding, port conflicts, bean wiring, database connectivity, and unknown failures).
+
 - TRUELAYER_CLIENT_ID: TrueLayer client identifier
   - Example: `<YOUR_CLIENT_ID>`
 - TRUELAYER_CLIENT_SECRET: TrueLayer client secret (sensitive)
@@ -98,4 +105,3 @@ Security and repo hygiene notes
 ```
 
 - Prefer storing secrets in a secure vault or CI secret manager for production deployments.
-
