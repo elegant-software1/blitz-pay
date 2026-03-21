@@ -1,23 +1,34 @@
 package com.elegant.software.blitzpay.config
 
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.server.PathContainer
+import org.springframework.web.reactive.accept.ApiVersionResolver
 import org.springframework.web.reactive.config.ApiVersionConfigurer
 import org.springframework.web.reactive.config.WebFluxConfigurer
 
-/**
- * Configures Spring Framework 7 / Spring Boot 4 native API versioning for WebFlux.
- *
- * The API version is embedded in the URL path as the first segment (e.g. /v1/invoices).
- * Supported versions are auto-detected from the [version] attribute on each
- * [org.springframework.web.bind.annotation.RequestMapping].
- */
 @Configuration
 class WebFluxVersioningConfig : WebFluxConfigurer {
 
     override fun configureApiVersioning(configurer: ApiVersionConfigurer) {
         configurer
-            .usePathSegment(0)
+            .useVersionResolver(PathOnlyApiVersionResolver())
+            .setVersionRequired(false)
             .setDefaultVersion("1")
             .detectSupportedVersions(true)
+    }
+}
+
+class PathOnlyApiVersionResolver : ApiVersionResolver {
+    private val versionPattern = Regex("^v(\\d+(?:\\.\\d+)*)$")
+
+    override fun resolveVersion(exchange: org.springframework.web.server.ServerWebExchange): String? {
+        val firstSegment = exchange.request.path.pathWithinApplication().elements()
+            .filterIsInstance<PathContainer.PathSegment>()
+            .firstOrNull()
+            ?.valueToMatch()
+            ?: return null
+
+        val match = versionPattern.matchEntire(firstSegment) ?: return null
+        return match.groupValues[1]
     }
 }

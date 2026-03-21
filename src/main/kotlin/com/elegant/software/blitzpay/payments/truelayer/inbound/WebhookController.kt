@@ -20,7 +20,7 @@ import java.time.format.DateTimeParseException
 
 
 @RestController
-@RequestMapping("/v1/webhooks/truelayer", version = "1")
+@RequestMapping("/{version:v\\d+(?:\\.\\d+)*}/webhooks/truelayer", version = "1")
 class TlWebhookController(
     private val jwksService: JwksService,
     private val props: TlWebhookProperties,

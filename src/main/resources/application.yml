@@ -37,13 +37,23 @@ management:
     metrics:
       enabled: true
 springdoc:
+  api-docs:
+    path: /api-docs
   show-actuator: true
   swagger-ui:
     urls:
       - name: Invoice
-        url: /v3/api-docs/Invoice
+        url: /api-docs/Invoice
       - name: QRPay
-        url: /v3/api-docs/QRPay
+        url: /api-docs/QRPay
+      - name: TrueLayer
+        url: /api-docs/TrueLayer
+      - name: Support
+        url: /api-docs/Support
+      - name: General
+        url: /api-docs/General
+      - name: Actuator
+        url: /api-docs/Actuator
 truelayer:
   apiBase: ${TRUELAYER_API_BASE:https://api.truelayer-sandbox.com}
   accessToken: ${TRUELAYER_ACCESS_TOKEN:dummy-access-token}
@@ -57,5 +67,5 @@ truelayer:
   httpLogs: ${TRUELAYER_HTTP_LOGS:false}
   merchantAccountId: ${TRUELAYER_MERCHANT_ACCOUNT_ID}
   webhooks:
-    environment: sandbox ** # "sandbox" or "live" */
-    maxSkew: PT60M    #  ** Max accepted age of the webhook timestamp header, e.g. PT5M */
+    environment: sandbox
+    maxSkew: PT60M
