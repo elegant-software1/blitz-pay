@@ -14,7 +14,7 @@ import java.util.*
 
 @Tag(name = "QR Payments", description = "Operations related to QR payments")
 @RestController
-@RequestMapping("/v1/payments", version = "1")
+@RequestMapping("/{version:v\\d+(?:\\.\\d+)*}/payments", version = "1")
 
 class PaymentRequestController(private val eventPublisher: ApplicationEventPublisher,
     private val paymentUpdateBus: PaymentUpdateBus) {
