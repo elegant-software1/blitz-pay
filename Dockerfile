@@ -1,11 +1,11 @@
 # Use a lightweight OpenJDK image
-FROM openjdk:21-jdk-slim
+FROM eclipse-temurin:25-jdk
 
 # Set the working directory
 WORKDIR /app
 
 # Copy the built jar file
-COPY build/libs/QRPay-0.0.1-SNAPSHOT.jar app.jar
+COPY build/libs/app.jar app.jar
 
 # Expose the application port
 EXPOSE 8080

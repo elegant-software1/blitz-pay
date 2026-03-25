@@ -1,3 +1,4 @@
+import org.springframework.boot.gradle.tasks.bundling.BootJar
 plugins {
     alias(libs.plugins.skillsjars)
     alias(libs.plugins.kotlin.jvm)
@@ -13,9 +14,13 @@ description = "BlitzPay"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
+        languageVersion = JavaLanguageVersion.of(providers.gradleProperty("javaVersion").get().toInt())
     }
 }
+tasks.named<BootJar>("bootJar") {
+    archiveFileName.set("app.jar")
+}
+
 
 val mavenProxyUrl = providers.gradleProperty("mavenProxyUrl").orNull
 val skillsJarsRepositoryUrl = providers.gradleProperty("skillsJarsRepositoryUrl").orNull

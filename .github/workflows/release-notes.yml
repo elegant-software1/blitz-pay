@@ -1,4 +1,4 @@
-name: Release Notes on Main Merge
+name: Release Notes (on main branch merge)
 
 on:
   pull_request:

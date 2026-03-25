@@ -1,0 +1,27 @@
+name: CD pipeline
+
+on:
+  release:
+     types:
+       - published
+       - prereleased
+
+jobs:
+  build:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+  release:
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    needs: build
+    if: github.event_name == 'release'
+    uses: medimohammadise/elegant-ci-cd-pipeline/.github/workflows/backend-build.yml@main
+    with:
+      java-version: ${{ vars.JAVA_VERSION }}
+      image-name: "blitzpay"
+      image-tag: ${{ github.ref_name }}
+      registry: ${{ vars.CONTAINER_REGISTRY }}

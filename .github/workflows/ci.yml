@@ -1,0 +1,30 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_call:
+    inputs:
+      gradle-args:
+        required: false
+        type: string
+        default: ""
+
+env:
+  ORG_GRADLE_PROJECT_javaVersion: ${{ vars.JAVA_VERSION }}
+
+jobs:
+  test:
+      permissions:
+        contents: read
+      uses: medimohammadise/elegant-ci-cd-pipeline/.github/workflows/backend-gradle-test.yml@main
+      with:
+        gradle-args: ${{ inputs.gradle-args }}
+        unit-test-task: test
+        integration-test-task: help
