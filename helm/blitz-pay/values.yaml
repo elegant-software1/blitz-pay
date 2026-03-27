@@ -1,0 +1,143 @@
+# Default values for blitz-pay.
+# Override per environment with values-staging.yaml or values-prod.yaml.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/medimohammadise/blitzpay
+  tag: latest
+  pullPolicy: IfNotPresent
+  pullSecrets: []  # e.g. [ghcr-pull-secret]
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ---------------------------------------------------------------------------
+# Secrets
+# ---------------------------------------------------------------------------
+# Name of the pre-created Kubernetes Secret containing sensitive env vars.
+# Create the secret BEFORE installing the chart. Never store secret values here.
+#
+# Required keys in the secret:
+#   SPRING_DATASOURCE_URL         - PostgreSQL JDBC connection URL
+#   SPRING_DATASOURCE_USERNAME    - Database username
+#   SPRING_DATASOURCE_PASSWORD    - Database password
+#   TRUELAYER_CLIENT_ID           - TrueLayer OAuth2 client ID
+#   TRUELAYER_CLIENT_SECRET       - TrueLayer OAuth2 client secret
+#   TRUELAYER_KEY_ID              - TrueLayer EC key ID for request signing
+#   TRUELAYER_MERCHANT_ACCOUNT_ID - TrueLayer merchant account UUID
+#   TRUELAYER_ACCESS_TOKEN        - TrueLayer bearer access token
+#
+# Note: TRUELAYER_PRIVATE_KEY_PATH is NOT in this secret — it is the in-container
+# file path and is set automatically in the ConfigMap. The PEM file content is in
+# the separate blitz-pay-truelayer-pem secret (see privateKey section below).
+#
+# Create with:
+#   kubectl create secret generic blitz-pay-secrets \
+#     --namespace <namespace> \
+#     --from-literal=SPRING_DATASOURCE_URL="jdbc:postgresql://<host>:5432/quickpay_db" \
+#     --from-literal=SPRING_DATASOURCE_USERNAME="<user>" \
+#     --from-literal=SPRING_DATASOURCE_PASSWORD="<password>" \
+#     --from-literal=TRUELAYER_CLIENT_ID="<client-id>" \
+#     --from-literal=TRUELAYER_CLIENT_SECRET="<client-secret>" \
+#     --from-literal=TRUELAYER_KEY_ID="<key-id>" \
+#     --from-literal=TRUELAYER_MERCHANT_ACCOUNT_ID="<merchant-id>" \
+#     --from-literal=TRUELAYER_ACCESS_TOKEN="<access-token>"
+secrets:
+  name: blitz-pay-secrets
+
+# ---------------------------------------------------------------------------
+# TrueLayer EC private key — Secret volume mount
+# ---------------------------------------------------------------------------
+# The TrueLayer SDK reads the private key from a file path (privateKeyPath in
+# application.yml). Key material cannot be passed as an env var string, so the
+# PEM content is stored in a dedicated Kubernetes Secret and mounted read-only
+# into the container as a file.
+#
+# TRUELAYER_PRIVATE_KEY_PATH is derived automatically as <mountPath>/<secretKey>
+# and injected via the ConfigMap — you do not set it in blitz-pay-secrets.
+#
+# Create the PEM secret before installing the chart:
+#   kubectl create secret generic blitz-pay-truelayer-pem \
+#     --namespace <namespace> \
+#     --from-file=private.pem=./ec512-private-key.pem
+#
+# AWS migration: install External Secrets Operator and create an ExternalSecret
+# that syncs the PEM from AWS Secrets Manager into blitz-pay-truelayer-pem.
+# No changes to this chart are required.
+privateKey:
+  secretName: blitz-pay-truelayer-pem
+  secretKey: private.pem
+  mountPath: /var/run/secrets/truelayer
+
+# ---------------------------------------------------------------------------
+# Non-sensitive application configuration (injected via ConfigMap)
+# ---------------------------------------------------------------------------
+config:
+  springProfilesActive: prod
+  truelayerApiBase: https://api.truelayer-sandbox.com
+  truelayerEnv: sandbox
+  truelayerHttpLogs: "false"
+  truelayerWebhookJku: http://localhost:8080/.well-known/jwks.json
+
+# ---------------------------------------------------------------------------
+# Resource requests and limits
+# ---------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# ---------------------------------------------------------------------------
+# Ingress
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hostname: api.blitz-pay.local
+  tlsSecretName: blitz-pay-tls
+  # Block /actuator paths at the ingress level (recommended: true).
+  # Kubernetes probes access actuator endpoints directly on the pod and are unaffected.
+  blockActuator: true
+  # Annotations merged into the Ingress resource.
+  # Override per environment to set the correct cert-manager cluster issuer.
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+# ---------------------------------------------------------------------------
+# Liveness and readiness probes (Spring Boot Actuator)
+# ---------------------------------------------------------------------------
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: 8080
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Startup probe — allows slow JVM startup without triggering liveness failures.
+# Kubernetes will not run liveness/readiness probes until the startup probe succeeds.
+# Max startup window = periodSeconds * failureThreshold = 10 * 30 = 300 seconds (5 min).
+startupProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: 8080
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30

@@ -1,22 +1,25 @@
+# DEPRECATED: This file is superseded by the Helm chart at helm/blitz-pay/.
+# Do not apply this file directly.
+# See specs/005-k8s-helm-deploy/quickstart.md for deployment instructions.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: blitzpay
+  name: blitz-pay
   labels:
-    app: blitzpay
+    app: blitz-pay
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: blitzpay
+      app: blitz-pay
   template:
     metadata:
       labels:
-        app: blitzpay
+        app: blitz-pay
     spec:
       containers:
-      - name: blitzpay
-        image: ghcr.io/medimohammadise/blitzpay:latest
+      - name: blitz-pay
+        image: ghcr.io/medimohammadise/blitz-pay:latest
         ports:
         - containerPort: 8080
           name: http
@@ -26,9 +29,9 @@ spec:
           value: "prod"
         envFrom:
         - configMapRef:
-            name: blitzpay-config
+            name: blitz-pay-config
         - secretRef:
-            name: blitzpay-secrets
+            name: blitz-pay-secrets
             optional: true
         resources:
           requests:
@@ -57,9 +60,9 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: blitzpay
+  name: blitz-pay
   labels:
-    app: blitzpay
+    app: blitz-pay
 spec:
   type: ClusterIP
   ports:
@@ -68,12 +71,12 @@ spec:
     protocol: TCP
     name: http
   selector:
-    app: blitzpay
+    app: blitz-pay
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: blitzpay-config
+  name: blitz-pay-config
 data:
   SPRING_PROFILES_ACTIVE: "prod"
   # Add other non-sensitive configuration here
@@ -83,7 +86,7 @@ data:
 # apiVersion: v1
 # kind: Secret
 # metadata:
-#   name: blitzpay-secrets
+#   name: blitz-pay-secrets
 # type: Opaque
 # stringData:
 #   DATABASE_URL: "jdbc:postgresql://postgres:5432/quickpay_db"

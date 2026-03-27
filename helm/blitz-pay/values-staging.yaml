@@ -1,0 +1,23 @@
+# Staging environment overrides.
+# Apply with: helm upgrade --install ... -f values.yaml -f values-staging.yaml
+
+replicaCount: 1
+
+image:
+  pullSecrets:
+    - ghcr-pull-secret
+
+ingress:
+  hostname: api.staging.blitz-pay.com
+  tlsSecretName: blitz-pay-tls-staging
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+config:
+  springProfilesActive: prod
+  truelayerApiBase: https://api.truelayer-sandbox.com
+  truelayerEnv: sandbox
+  truelayerHttpLogs: "true"
+  truelayerWebhookJku: https://api.staging.blitz-pay.com/.well-known/jwks.json

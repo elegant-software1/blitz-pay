@@ -1,0 +1,35 @@
+blitz-pay has been deployed to namespace {{ .Release.Namespace }}.
+
+---
+IMPORTANT: The application requires a pre-created Kubernetes Secret named
+"{{ .Values.secrets.name }}" to start successfully. If you have not created it yet:
+
+  kubectl create secret generic {{ .Values.secrets.name }} \
+    --namespace {{ .Release.Namespace }} \
+    --from-literal=SPRING_DATASOURCE_URL="jdbc:postgresql://<host>:5432/quickpay_db" \
+    --from-literal=SPRING_DATASOURCE_USERNAME="<user>" \
+    --from-literal=SPRING_DATASOURCE_PASSWORD="<password>" \
+    --from-literal=TRUELAYER_CLIENT_ID="<client-id>" \
+    --from-literal=TRUELAYER_CLIENT_SECRET="<client-secret>" \
+    --from-literal=TRUELAYER_KEY_ID="<key-id>" \
+    --from-literal=TRUELAYER_PRIVATE_KEY_PATH="/secrets/private.pem" \
+    --from-literal=TRUELAYER_MERCHANT_ACCOUNT_ID="<merchant-id>" \
+    --from-literal=TRUELAYER_ACCESS_TOKEN="<access-token>"
+
+Then restart the deployment:
+  kubectl rollout restart deployment/{{ include "blitz-pay.fullname" . }} -n {{ .Release.Namespace }}
+
+---
+Check pod status:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "blitz-pay.name" . }}
+
+Port-forward for local testing (no ingress needed):
+  kubectl port-forward svc/{{ include "blitz-pay.fullname" . }} 8080:80 -n {{ .Release.Namespace }}
+  open http://localhost:8080/swagger-ui
+
+{{- if .Values.ingress.enabled }}
+
+Ingress hostname: {{ .Values.ingress.hostname }}
+  https://{{ .Values.ingress.hostname }}/swagger-ui
+  https://{{ .Values.ingress.hostname }}/api-docs
+{{- end }}

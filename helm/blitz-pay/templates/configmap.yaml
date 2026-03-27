@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "blitz-pay.fullname" . }}-config
+  labels:
+    {{- include "blitz-pay.labels" . | nindent 4 }}
+data:
+  SPRING_PROFILES_ACTIVE: {{ .Values.config.springProfilesActive | quote }}
+  TRUELAYER_API_BASE: {{ .Values.config.truelayerApiBase | quote }}
+  TRUELAYER_ENV: {{ .Values.config.truelayerEnv | quote }}
+  TRUELAYER_HTTP_LOGS: {{ .Values.config.truelayerHttpLogs | quote }}
+  TRUELAYER_WEBHOOK_JKU: {{ .Values.config.truelayerWebhookJku | quote }}
+  # Not sensitive — just the in-container path to the mounted PEM file.
+  # The actual PEM content is in the blitz-pay-truelayer-pem Secret (volume mount).
+  TRUELAYER_PRIVATE_KEY_PATH: {{ printf "%s/%s" .Values.privateKey.mountPath .Values.privateKey.secretKey | quote }}

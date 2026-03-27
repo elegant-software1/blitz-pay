@@ -1,0 +1,49 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "blitz-pay.fullname" . }}
+  labels:
+    {{- include "blitz-pay.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.ingress.blockActuator }}
+    nginx.ingress.kubernetes.io/server-snippet: |
+      location /actuator {
+        return 403;
+      }
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.ingressClassName }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.hostname | quote }}
+      secretName: {{ .Values.ingress.tlsSecretName | quote }}
+  rules:
+    - host: {{ .Values.ingress.hostname | quote }}
+      http:
+        paths:
+          - path: /api-docs
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "blitz-pay.fullname" . }}
+                port:
+                  number: 80
+          - path: /swagger-ui
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "blitz-pay.fullname" . }}
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "blitz-pay.fullname" . }}
+                port:
+                  number: 80
+{{- end }}

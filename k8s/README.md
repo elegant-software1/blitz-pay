@@ -1,136 +1,154 @@
-# Kubernetes Manifests
+# Kubernetes Deployment
 
-This directory contains Kubernetes manifests for deploying BlitzPay application.
+> **The canonical deployment method is the Helm chart at `helm/blitz-pay/`.**
+> The raw manifest `deployment.yaml` in this directory is deprecated and kept for reference only.
+> Do not apply it directly.
 
-## Files
+---
 
-- `deployment.yaml`: Complete Kubernetes deployment configuration including Deployment, Service, and ConfigMap
+## Prerequisites
 
-## Usage
+- `kubectl` configured against the target cluster
+- `helm` >= 3.x
+- The two secrets below created in the target namespace
 
-### Manual Deployment
+---
 
-1. Create a secret with sensitive information:
+## Step 1 — Create the application credentials secret
+
+Injected as environment variables into the container.
+
 ```bash
-kubectl create secret generic blitzpay-secrets \
-  --from-literal=DATABASE_URL="jdbc:postgresql://postgres:5432/quickpay_db" \
-  --from-literal=TRUELAYER_CLIENT_ID="your-client-id" \
-  --from-literal=TRUELAYER_CLIENT_SECRET="your-client-secret" \
-  --from-literal=TRUELAYER_KEY_ID="your-key-id" \
-  --from-literal=TRUELAYER_MERCHANT_ACCOUNT_ID="your-merchant-account-id" \
-  --namespace=default
+kubectl create secret generic blitz-pay-secrets \
+  --namespace <namespace> \
+  --from-literal=SPRING_DATASOURCE_URL="jdbc:postgresql://<host>:5432/quickpay_db" \
+  --from-literal=SPRING_DATASOURCE_USERNAME="<user>" \
+  --from-literal=SPRING_DATASOURCE_PASSWORD="<password>" \
+  --from-literal=TRUELAYER_CLIENT_ID="<client-id>" \
+  --from-literal=TRUELAYER_CLIENT_SECRET="<client-secret>" \
+  --from-literal=TRUELAYER_KEY_ID="<key-id>" \
+  --from-literal=TRUELAYER_MERCHANT_ACCOUNT_ID="<merchant-id>" \
+  --from-literal=TRUELAYER_ACCESS_TOKEN="<access-token>"
 ```
 
-2. Apply the manifests:
+## Step 2 — Create the TrueLayer PEM key secret
+
+The TrueLayer SDK reads the EC private key from a **file path** — it cannot accept key
+material as a plain environment variable string. The PEM content is stored in a dedicated
+secret and mounted read-only into the container at
+`/var/run/secrets/truelayer/private.pem`.
+
+`TRUELAYER_PRIVATE_KEY_PATH` is set automatically by the Helm chart's ConfigMap — you do
+not need to set it manually.
+
 ```bash
-kubectl apply -f k8s/deployment.yaml --namespace=default
+kubectl create secret generic blitz-pay-truelayer-pem \
+  --namespace <namespace> \
+  --from-file=private.pem=./ec512-private-key.pem
 ```
 
-3. Check deployment status:
+> **Why a separate secret?**
+> `envFrom.secretRef` injects string environment variables only — it cannot mount files.
+> File secrets require a volume mount, which must reference a dedicated secret.
+> Keeping the PEM in its own secret also allows independent key rotation and maps cleanly
+> to a single AWS Secrets Manager entry during future migration.
+
+---
+
+## Step 3 — Deploy with Helm
+
+### Staging
+
 ```bash
-kubectl get pods -l app=blitzpay
-kubectl get svc blitzpay
+helm upgrade --install blitz-pay ./helm/blitz-pay \
+  --namespace blitz-pay-staging \
+  --create-namespace \
+  --values ./helm/blitz-pay/values.yaml \
+  --values ./helm/blitz-pay/values-staging.yaml \
+  --wait --timeout 5m
 ```
 
-### Using with GitHub Actions
+### Production
 
-These manifests are used as fallback by the GitHub Actions deployment workflow when Arconia plugin is not available. The workflow automatically:
-- Creates/updates ConfigMaps
-- Creates/updates Secrets
-- Applies the deployment
-- Monitors rollout status
-
-## Configuration
-
-### Environment Variables
-
-The application can be configured using environment variables:
-
-**Database:**
-- `DATABASE_URL`: JDBC connection URL for PostgreSQL
-
-**TrueLayer:**
-- `TRUELAYER_CLIENT_ID`: TrueLayer API client ID
-- `TRUELAYER_CLIENT_SECRET`: TrueLayer API client secret
-- `TRUELAYER_KEY_ID`: TrueLayer signing key ID
-- `TRUELAYER_MERCHANT_ACCOUNT_ID`: TrueLayer merchant account ID
-
-**Spring:**
-- `SPRING_PROFILES_ACTIVE`: Active Spring profile (dev, staging, prod)
-
-### Resource Limits
-
-Default resource configuration:
-- Requests: 512Mi memory, 250m CPU
-- Limits: 1Gi memory, 1000m CPU
-
-Adjust these values based on your workload requirements in `deployment.yaml`.
-
-### Health Checks
-
-The deployment includes:
-- **Liveness Probe**: Checks if the application is running
-  - Path: `/actuator/health/liveness`
-  - Initial delay: 60 seconds
-  - Period: 10 seconds
-
-- **Readiness Probe**: Checks if the application is ready to serve traffic
-  - Path: `/actuator/health/readiness`
-  - Initial delay: 30 seconds
-  - Period: 5 seconds
-
-## Scaling
-
-To scale the deployment:
 ```bash
-kubectl scale deployment blitzpay --replicas=3
+helm upgrade --install blitz-pay ./helm/blitz-pay \
+  --namespace blitz-pay-prod \
+  --create-namespace \
+  --values ./helm/blitz-pay/values.yaml \
+  --values ./helm/blitz-pay/values-prod.yaml \
+  --set image.tag=<version> \
+  --wait --timeout 5m
 ```
 
-Or edit the `replicas` field in `deployment.yaml` and reapply.
+---
 
-## Accessing the Application
+## Rotating secrets
 
-### Within the cluster
+### Rotate a credential
+
 ```bash
-curl http://blitzpay.default.svc.cluster.local/actuator/health
+kubectl patch secret blitz-pay-secrets \
+  --namespace blitz-pay-prod \
+  --type='json' \
+  -p='[{"op":"replace","path":"/data/TRUELAYER_ACCESS_TOKEN","value":"'$(echo -n "<new-token>" | base64)'"}]'
 ```
 
-### Port forwarding for local access
+### Rotate the PEM key
+
 ```bash
-kubectl port-forward service/blitzpay 8080:80
-curl http://localhost:8080/actuator/health
+kubectl create secret generic blitz-pay-truelayer-pem \
+  --namespace blitz-pay-prod \
+  --from-file=private.pem=./new-ec512-private-key.pem \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-### Using Ingress (if configured)
-Set up an Ingress resource to expose the application externally.
+After rotating either secret, trigger a rolling restart:
+
+```bash
+kubectl rollout restart deployment/blitz-pay -n blitz-pay-prod
+```
+
+---
+
+## Migrating secrets to AWS Secrets Manager
+
+Both secrets are designed for zero-change migration via
+[External Secrets Operator (ESO)](https://external-secrets.io/):
+
+1. Install ESO in your cluster
+2. Create an AWS IAM role for ESO (IRSA on EKS)
+3. Create a `SecretStore` pointing to your AWS region
+4. Create two `ExternalSecret` resources — one mapping `blitz-pay/prod/credentials` →
+   `blitz-pay-secrets`, and one mapping `blitz-pay/prod/truelayer-private-key` →
+   `blitz-pay-truelayer-pem` (key: `private.pem`)
+
+ESO syncs both K8s Secrets automatically. **No changes to Helm templates or values files
+are required.**
+
+See `helm/blitz-pay/SECRET-SETUP.md` for the full ESO manifest examples.
+
+---
 
 ## Troubleshooting
 
-### Check pod logs
 ```bash
-kubectl logs -f deployment/blitzpay
+# Check pod status
+kubectl get pods -n blitz-pay-prod -l app.kubernetes.io/name=blitz-pay
+
+# Tail logs
+kubectl logs -f deployment/blitz-pay -n blitz-pay-prod
+
+# Describe pod (shows volume mount errors, image pull errors, etc.)
+kubectl describe pod -l app.kubernetes.io/name=blitz-pay -n blitz-pay-prod
+
+# Verify PEM file is present inside the container
+kubectl exec -it deployment/blitz-pay -n blitz-pay-prod -- \
+  ls -la /var/run/secrets/truelayer/
+
+# Check rollout status
+kubectl rollout status deployment/blitz-pay -n blitz-pay-prod
+
+# Port-forward for local testing
+kubectl port-forward svc/blitz-pay 8080:80 -n blitz-pay-prod
+curl http://localhost:8080/actuator/health
 ```
-
-### Describe pod for events
-```bash
-kubectl describe pod -l app=blitzpay
-```
-
-### Check deployment status
-```bash
-kubectl rollout status deployment/blitzpay
-```
-
-### Restart deployment
-```bash
-kubectl rollout restart deployment/blitzpay
-```
-
-## Arconia Integration
-
-For automated Kubernetes manifest generation using Arconia, the GitHub Actions workflow will:
-1. Add the Arconia plugin to `build.gradle.kts`
-2. Generate manifests with `./gradlew bootBuildImage`
-3. Apply generated manifests from `build/arconia/`
-
-If Arconia generation fails, the workflow falls back to the manifests in this directory.

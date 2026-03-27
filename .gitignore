@@ -36,6 +36,15 @@ out/
 ### VS Code ###
 .vscode/
 
+### Kubernetes / Secrets ###
+kubeconfig*
+.kube/
+*.secret.yaml
+secrets/
+*.pem
+*.key
+*.crt
+
 ### Kotlin ###
 .kotlin
 *.class

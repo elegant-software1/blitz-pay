@@ -1,0 +1,45 @@
+# Production environment overrides.
+# Apply with: helm upgrade --install ... -f values.yaml -f values-prod.yaml
+
+replicaCount: 2
+
+image:
+  pullPolicy: Always
+  pullSecrets:
+    - ghcr-pull-secret
+
+ingress:
+  hostname: api.blitz-pay.com
+  tlsSecretName: blitz-pay-tls-prod
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+config:
+  springProfilesActive: prod
+  truelayerApiBase: https://api.truelayer.com
+  truelayerEnv: live  # true layer treats this as "production" environment
+  truelayerHttpLogs: "false"
+  truelayerWebhookJku: https://api.blitz-pay.com/.well-known/jwks.json
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 768Mi
+  limits:
+    cpu: 1500m
+    memory: 1.5Gi
+
+livenessProbe:
+  periodSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  periodSeconds: 3
+  failureThreshold: 2
+
+startupProbe:
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  failureThreshold: 30

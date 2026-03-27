@@ -1,0 +1,10 @@
+# Patterns to exclude from Helm chart packaging
+.git
+.gitignore
+*.md
+*.txt
+specs/
+.specify/
+.DS_Store
+*.tmp
+*.swp
