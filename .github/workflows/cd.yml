@@ -22,6 +22,6 @@ jobs:
     uses: medimohammadise/elegant-ci-cd-pipeline/.github/workflows/backend-build.yml@main
     with:
       java-version: ${{ vars.JAVA_VERSION }}
-      image-name: "blitzpay"
+      image-name: ${{ vars.APP_NAME }}
       image-tag: ${{ github.ref_name }}
       registry: ${{ vars.CONTAINER_REGISTRY }}

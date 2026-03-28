@@ -4,7 +4,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/medimohammadise/blitzpay
+  repository: ghcr.io/medimohammadise/blitz-pay
   tag: latest
   pullPolicy: IfNotPresent
   pullSecrets: []  # e.g. [ghcr-pull-secret]
