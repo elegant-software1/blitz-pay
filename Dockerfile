@@ -1,15 +1,25 @@
-# Use a lightweight OpenJDK image
-FROM eclipse-temurin:25-jdk
+# ── Stage 1: Build ────────────────────────────────────────────────────────────
+FROM eclipse-temurin:25-jdk AS build
 
-# Set the working directory
+WORKDIR /workspace
+
+# Copy Gradle wrapper and dependency manifests first for layer caching
+COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties* ./
+COPY gradle/ gradle/
+
+RUN chmod +x gradlew && ./gradlew dependencies --no-daemon -q || true
+
+# Copy source and build the fat jar
+COPY src/ src/
+RUN ./gradlew bootJar -x test --no-daemon -q
+
+# ── Stage 2: Runtime ──────────────────────────────────────────────────────────
+FROM eclipse-temurin:25-jre
+
 WORKDIR /app
 
-# Copy the built jar file
-COPY build/libs/app.jar app.jar
+COPY --from=build /workspace/build/libs/app.jar app.jar
 
-# Expose the application port
 EXPOSE 8080
 
-# Run the application
 ENTRYPOINT ["java", "-jar", "app.jar"]
-
