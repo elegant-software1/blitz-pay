@@ -115,6 +115,10 @@ The test verifies:
 - semantic version extraction for `/v1.2/...`
 - non-interference with `/swagger-ui/...`
 
+## Related
+
+- `reference/spring-boot-best-practices.md` — typed `@ConfigurationProperties` pattern used for version config, per-module OpenAPI grouping, Swagger path rewriting
+
 ## References
 
 - Spring Framework WebFlux API Versioning:

@@ -13,15 +13,11 @@ Contributors should preserve the project architecture described in `README.md`. 
 - If module detection cannot follow the default direct-subpackage rule, make the deviation explicit with Spring Modulith configuration and document it in `README.md`.
 - Treat each module root package as the public API of that module. Put internal types in sub-packages such as `internal` and do not reference them from other modules.
 - Prefer closed modules. Only use open modules as a temporary migration step, and document why the module cannot yet enforce encapsulation.
-- In Kotlin, declare module metadata with a dedicated type annotated with `@org.springframework.modulith.PackageInfo` because Kotlin does not support `package-info.java`. Use that metadata type for `@ApplicationModule` and `@NamedInterface` declarations when needed.
 - Use `@ApplicationModule(allowedDependencies = …)` for modules with important dependency constraints. Prefer explicit allowed dependencies over informal conventions once more than a few modules exist.
 - Expose additional cross-module contracts through named interfaces instead of making entire implementation packages public.
 - Prefer cross-module communication through published domain events and `@ApplicationModuleListener` or transactional event listeners instead of direct bean coupling when the interaction is asynchronous or secondary to the main use case.
 - If a module starts depending on many beans from another module, treat that as an architecture smell and reconsider the boundary before adding more direct dependencies.
 - Keep HTTP controllers, provider clients, persistence adapters, and startup/configuration code inside the module they belong to, but separate them from core business logic within that module.
-- Use Kotlin idioms that work well with Spring: constructor injection, immutable `val` state by default, null-safety, and data classes for DTOs or configuration properties where appropriate.
-- Do not use Kotlin `data class` indiscriminately for JPA entities; prefer regular classes for entity types unless the mapping semantics are explicitly safe.
-- Keep configuration properties immutable where possible and prefer constructor-bound properties over scattered `@Value` injection.
 - Maintain module verification tests with `ApplicationModules.of(...).verify()` and prefer `@ApplicationModuleTest` for integration tests that exercise a single module and its declared dependencies.
 - Keep Spring Modulith documentation current. When module boundaries or dependencies change, regenerate and review the module diagrams and canvases produced under `build/spring-modulith-docs`.
 - Keep request and response contracts stable once exposed; if an API change is required, update versioning behavior, module tests, and documentation together.
@@ -29,6 +25,17 @@ Contributors should preserve the project architecture described in `README.md`. 
 - Update `README.md` and related docs when module boundaries, architecture rules, runtime prerequisites, environment variables, or integration behavior changes.
 
 When a change would violate one of these principles, either redesign it to fit the existing architecture or update the architecture docs and implementation together as one deliberate change.
+
+## Coding Convention References
+
+For technology-specific patterns, refer to the dedicated best practices documents:
+
+| Topic | Document |
+|---|---|
+| Spring Boot (`@ConfigurationProperties`, injection, reactive stack) | [`reference/spring-boot-best-practices.md`](reference/spring-boot-best-practices.md) |
+| Spring Modulith (module boundaries, events, verification) | [`reference/spring-modulith-best-practices.md`](reference/spring-modulith-best-practices.md) |
+| Spring Data JPA (entities, repositories, transactions) | [`reference/spring-data-jpa-best-practices.md`](reference/spring-data-jpa-best-practices.md) |
+| Liquibase (schema migrations, changeset conventions) | [`reference/liquibase-best-practices.md`](reference/liquibase-best-practices.md) |
 
 ## File Naming
 

@@ -12,6 +12,7 @@ This document defines the baseline architecture expectations for BlitzPay module
 - Every module that exposes HTTP endpoints MUST publish Swagger/OpenAPI documentation.
 - Each module MUST define an explicit API group name for its endpoints.
 - API group names SHOULD be concise and avoid spaces to keep URLs stable.
+- For implementation patterns (per-module grouping, version path rewriting, `@ConfigurationProperties`): see `reference/spring-boot-best-practices.md`.
 
 ## Ownership and Changes
 - Any change that affects module boundaries or exposed APIs MUST be reflected in this document.
