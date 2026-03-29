@@ -1,142 +1,91 @@
-# Research: Merchant Onboarding — Product Catalog & Multi-tenancy
+# Research: Merchant Onboarding - Product Image Upload API
 
-**Feature Branch**: `001-merchant-onboarding`
-**Date**: 2026-04-19
-**Scope**: Discriminator-based multi-tenancy for the product catalog, following Thomas Vitalle's Spring Boot community patterns
-
----
-
-## Decision 1 — Multi-tenancy Strategy
-
-**Decision**: Discriminator-based (shared schema) multi-tenancy using `merchant_application_id` as the tenant column on all product tables.
-
-**Rationale**: The merchant is already modelled as `MerchantApplication` with a UUID PK. All product rows belong to exactly one merchant. A dedicated column per table (shared schema) avoids connection-pool complexity of schema-per-tenant and is the approach recommended by Thomas Vitalle for single-database SaaS workloads.
-
-**Alternatives considered**:
-- Schema-per-tenant: rejected — adds connection-pool overhead and Flyway/Liquibase schema-management complexity with no benefit at current scale.
-- Database-per-tenant: rejected — overkill, changes infrastructure model entirely.
-
-**Reference**: Thomas Vitalle, "Multitenant Mystery: Only Rockers in the Building" (Spring I/O 2023). GitHub: `ThomasVitale/spring-boot-multitenancy`.
+**Feature Branch**: `001-merchant-onboarding`  
+**Date**: 2026-04-21  
+**Scope**: Multipart product image upload, private S3-compatible storage, stable image object keys, signed retrieval URLs
 
 ---
 
-## Decision 2 — Application-level Tenant Filtering (Primary Layer)
+## Decision 1 - Multipart Product Create/Update
 
-**Decision**: Use Hibernate `@FilterDef` / `@Filter` on the `MerchantProduct` entity. Before any product query the service layer enables the Hibernate filter, injecting the current merchant UUID as parameter.
+**Decision**: Product create and update endpoints accept `multipart/form-data` containing product fields (`name`, `unitPrice`) and an optional binary `image` part.
 
-**Rationale**: Vitalle's approach — filters are applied transparently to all queries on the annotated entity without requiring custom JPQL WHERE clauses in every repository method. Hibernate 6 (used via Spring Boot 4) supports `@FilterDef` with `@ParamDef` typed against `UUIDJavaType`.
-
-**Pattern**:
-```kotlin
-@FilterDef(
-    name = "tenantFilter",
-    parameters = [ParamDef(name = "merchantId", type = UUIDJavaType::class)]
-)
-@Filter(name = "tenantFilter", condition = "merchant_application_id = :merchantId")
-@Entity
-@Table(name = "merchant_products")
-class MerchantProduct(...)
-```
-
-Service layer enables the filter before each repository call:
-```kotlin
-val session = entityManager.unwrap(Session::class.java)
-session.enableFilter("tenantFilter").setParameter("merchantId", merchantId)
-```
+**Rationale**: The clarification selected combined product writes instead of a separate upload endpoint. A single multipart request lets the API validate product fields and image constraints together and fail the whole operation without persisting a partial product record. It also keeps mobile/client workflow simple for create/update with an image.
 
 **Alternatives considered**:
-- `@TenantId` (Hibernate 6 native): rejected — requires `MultiTenantConnectionProvider` wiring; heavier than filter-based approach for discriminator strategy.
-- Manual `findByMerchantApplicationId(...)` query parameters: rejected — error-prone; filter approach is less likely to miss tenant scoping on new repository methods.
+- Separate upload endpoint returning a key: rejected by clarification.
+- Support both JSON and multipart for writes: deferred; doubles test and validation surface without a current requirement.
 
 ---
 
-## Decision 3 — PostgreSQL Row Level Security (Safety Net Layer)
+## Decision 2 - Persist Object Key, Not URL
 
-**Decision**: Enable PostgreSQL RLS on `merchant_products` and `merchant_product_categories` (if added). Policy reads the `app.current_merchant_id` session variable set by the application at transaction start.
+**Decision**: Product metadata stores only a stable image object key, named `imageStorageKey` in Kotlin/API internals and mapped to the existing database column until a migration can normalize naming.
 
-**Rationale**: RLS acts as a defence-in-depth layer. Even if a bug bypasses Hibernate filters, the database rejects cross-tenant reads. This satisfies FR-036 (RLS as safety net).
-
-**Policy**:
-```sql
-ALTER TABLE blitzpay.merchant_products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE blitzpay.merchant_products FORCE ROW LEVEL SECURITY;
-
-CREATE POLICY merchant_tenant_isolation
-    ON blitzpay.merchant_products
-    USING (
-        merchant_application_id = NULLIF(current_setting('app.current_merchant_id', true), '')::uuid
-    );
-```
-
-The application sets the session variable per transaction:
-```kotlin
-entityManager.createNativeQuery("SET LOCAL app.current_merchant_id = :mid")
-    .setParameter("mid", merchantId.toString())
-    .executeUpdate()
-```
-
-`NULLIF(..., '')` safely degrades when no tenant context is set (e.g., admin bypass queries running as superuser bypass RLS).
+**Rationale**: Object keys are stable across environments. Direct URLs vary between MinIO, staging, and production S3 endpoints, and storing them would make private buckets and signed URLs harder to enforce. The existing merchant logo flow already uses storage keys, so this aligns product images with the repository's storage boundary.
 
 **Alternatives considered**:
-- RLS using `current_user`-based policies: rejected — requires separate DB roles per tenant, too complex for current setup.
-- No RLS: rejected — FR-036 explicitly requires it as safety net.
+- Store direct S3/MinIO URL: rejected; leaks infrastructure details and conflicts with private object access.
+- Store both key and URL: rejected; introduces consistency problems when endpoint, bucket, or URL signing configuration changes.
 
 ---
 
-## Decision 4 — Tenant Context Propagation in Spring WebFlux
+## Decision 3 - Private Objects and Signed Retrieval URLs
 
-**Decision**: Use a `MerchantTenantContext` stored in Project Reactor's `ContextView`. A `WebFilter` extracts the merchant ID from the authenticated principal (request path variable `{merchantId}` validated against the principal) and writes it into the Reactor context. Service layer reads it via `ReactiveSecurityContextHolder`-style pattern.
+**Decision**: Product images are private S3-compatible objects. Product list/get/create/update responses expose an `imageUrl` value only as a short-lived signed GET URL generated by `StorageService.presignDownload(...)`; if no image exists or URL generation fails because the object is missing/unresolvable, return `imageUrl: null`.
 
-**Rationale**: WebFlux is non-blocking; thread-locals do not propagate across async chains. Reactor context is the correct propagation mechanism, as documented in Thomas Vitalle's "Cloud Native Spring in Action" and Spring Security's own reactive context holder pattern.
-
-**Flow**:
-```
-WebFilter → contextWrite { ctx -> ctx.put(MERCHANT_TENANT_KEY, merchantId) }
-  └─ Service.flatMap { ctx ->
-       val merchantId = ctx.get<UUID>(MERCHANT_TENANT_KEY)
-       Mono.fromCallable {
-           enableHibernateFilter(merchantId)
-           setSessionVariable(merchantId)
-           repository.findByIdAndActive(productId)
-       }.subscribeOn(Schedulers.boundedElastic())
-     }
-```
+**Rationale**: Signed URLs satisfy buyer/mobile retrieval needs without public bucket access. `StorageService` already exposes `presignDownload(storageKey, ttlMinutes)`, so the implementation can reuse the existing storage module and local MinIO configuration.
 
 **Alternatives considered**:
-- `ThreadLocal`-based `TenantContextHolder`: rejected for WebFlux — thread affinity not guaranteed across reactive operators.
-- Passing `merchantId` as explicit method parameter: acceptable fallback but adds boilerplate and is prone to omission.
+- Public-read objects: rejected by clarification and weaker tenant isolation.
+- API byte streaming endpoint: rejected for now; adds proxy bandwidth and cache concerns not required by the spec.
 
 ---
 
-## Decision 5 — Image Storage URL Pattern
+## Decision 4 - Upload Validation
 
-**Decision**: Images are stored in S3-compatible object storage (already used for merchant logos via `logo_storage_key` on `merchant_applications`). `MerchantProduct.imageUrl` stores the resolved HTTPS URL (not the raw storage key) since products are buyer-facing.
+**Decision**: Accept only JPEG, PNG, and WebP images up to 5 MB. Validate content type and size before product metadata is persisted. Return structured HTTP 400 validation errors for unsupported or oversized files.
 
-**Rationale**: The existing `BusinessProfile.logoStorageKey` pattern stores the raw S3 key. For products the URL is more useful for buyer-facing API consumers. The distinction follows the same pattern used for merchant logo: upload is a separate concern from the product record.
+**Rationale**: The clarified constraints are testable and practical for mobile uploads. Early validation prevents storing invalid objects or product rows and keeps failure behavior deterministic.
 
 **Alternatives considered**:
-- Store raw S3 key + resolve URL on read: rejected — adds complexity for no benefit in this context; products are read-heavy and buyer-facing.
-- Store base64 binary: rejected (FR-032).
+- JPEG/PNG only, 2 MB: rejected as too restrictive for modern product imagery.
+- Any image MIME type, 10 MB: rejected; larger storage/network cost and broader parsing/security surface.
 
 ---
 
-## Decision 6 — MerchantLocation: Separate Entity vs Embedded Columns
+## Decision 5 - Storage Failure and Transaction Boundary
 
-**Decision**: `MerchantLocation` is a separate JPA entity with its own table (`blitzpay.merchant_locations`), linked 1-to-1 with `MerchantApplication` via a UNIQUE FK column.
+**Decision**: During create/update, upload the image object before saving product metadata. If object upload fails, return an error and do not persist product changes. If metadata persistence fails after a successful object upload, attempt best-effort cleanup of the newly uploaded object and surface the persistence failure.
 
-**Rationale**: Location is optional (not all merchants have a physical location). Storing nullable `latitude`/`longitude`/`google_place_id` columns directly on `merchant_applications` pollutes the application table with columns that are null for most records and conceptually belong to a different concern (physical presence vs. legal registration). A separate optional entity is cleaner, easier to extend (e.g., adding `altitude`, enrichment metadata), and aligns with the clarification decision.
-
-**Coordinates precision**: `DECIMAL(9,6)` — 9 total digits, 6 decimal places. This gives ~0.11 m resolution globally (GPS accuracy ±0.1 m), and is the de-facto standard for geospatial coordinates in relational databases. Values must satisfy: `-90 ≤ latitude ≤ 90`, `-180 ≤ longitude ≤ 180`.
-
-**Co-requirement rule**: Latitude and longitude are either both provided or both null. A request that supplies only one MUST be rejected with HTTP 400.
-
-**Google Place ID**: Stored as-is (`VARCHAR(255)`) without real-time validation. The standard Google Place ID format is alphanumeric + underscores, max ~100 chars in practice, but 255 provides headroom. Future enrichment (resolving address, reviews) deferred to a background job.
-
-**Endpoint**: `PUT /v1/merchants/{merchantId}/location` performs an upsert — creates the record on first call, replaces on subsequent calls. Accepts all-null body to clear the location. Returns `201 Created` (first write) or `200 OK` (update). Also adds `GET /v1/merchants/{merchantId}/location` to retrieve the location record.
+**Rationale**: The spec requires no partial product record when upload fails. Upload-first avoids product rows pointing at missing objects. Best-effort cleanup handles the opposite failure mode without adding distributed transaction complexity between PostgreSQL and S3/MinIO.
 
 **Alternatives considered**:
-- Embedded nullable columns on `merchant_applications`: rejected — pollutes the main table; harder to null-check as a unit; harder to extend.
-- Point/geography PostgreSQL type: rejected — requires PostGIS extension which is not currently installed; `DECIMAL(9,6)` pairs are sufficient for the storage/retrieval use case. PostGIS can be added later when spatial queries are needed.
+- Save DB first then upload: rejected; can leave product records pointing at unavailable images.
+- Transactional outbox cleanup: deferred; useful if image volume grows, but heavy for this increment.
+
+---
+
+## Decision 6 - Direct S3 Upload Implementation
+
+**Decision**: Extend `StorageService` with an application-side upload operation or add a narrow product-image storage adapter that uses the existing `S3Client.putObject` with the configured bucket. Continue using `presignDownload` for reads.
+
+**Rationale**: The current storage service only presigns PUT URLs; the clarified API requires the server to accept the uploaded file in the product request and place it in object storage itself. Keeping the upload behind the storage module prevents S3 SDK details from leaking into the merchant service.
+
+**Alternatives considered**:
+- Continue presigned PUT flow: rejected by multipart create/update clarification.
+- Put S3 SDK directly in `MerchantProductService`: rejected; violates the existing storage module boundary.
+
+---
+
+## Decision 7 - Local MinIO Configuration
+
+**Decision**: Reuse existing `blitzpay.storage` configuration keys in `application.yml`: `endpoint`, `region`, `access-key`, `secret-key`, `bucket`, and `path-style-access`. Local development uses MinIO at `http://localhost:9000` with `minioadmin` defaults.
+
+**Rationale**: The codebase already has S3/MinIO configuration and AWS SDK S3 wiring. No new configuration surface is needed for this feature, aside from optional signed URL TTL tuning if tasks decide to expose it.
+
+**Alternatives considered**:
+- Add separate product-image storage settings: rejected; no requirement differs from existing storage configuration.
 
 ---
 
@@ -144,12 +93,10 @@ WebFilter → contextWrite { ctx -> ctx.put(MERCHANT_TENANT_KEY, merchantId) }
 
 | Item | Resolution |
 |------|------------|
-| Multi-tenancy enforcement mechanism | Hibernate `@Filter` (primary) + PostgreSQL RLS (safety net) |
-| Tenant identifier | `MerchantApplication.id` (UUID) = `merchant_application_id` on product tables |
-| Reactive context propagation | Reactor `ContextView` via `WebFilter` + `contextWrite` |
-| Image storage | S3-compatible object storage; product record stores HTTPS URL |
-| Zero-price products | Allowed — `unitPrice DECIMAL(12,4) CHECK (unit_price >= 0)` |
-| Currency | Implicit merchant currency — no per-product currency column |
-| MerchantLocation storage | Separate entity/table; `DECIMAL(9,6)` lat/lon; `VARCHAR(255)` Place ID; no Maps API call at save |
-| Coordinates validation | `-90 ≤ lat ≤ 90`, `-180 ≤ lon ≤ 180`; both-or-neither co-requirement |
-| Place ID validation | Deferred to background job; stored as-is |
+| Upload API shape | Multipart product create/update with optional `image` file part |
+| Persisted image reference | Stable object key (`imageStorageKey`), not URL |
+| Retrieval behavior | API returns short-lived signed `imageUrl`; returns `null` if no usable object |
+| Bucket/object access | Private objects only; no public-read bucket policy |
+| Accepted image types | JPEG, PNG, WebP |
+| Image size limit | 5 MB |
+| Local object store | Existing S3-compatible `blitzpay.storage.*` configuration, MinIO locally |

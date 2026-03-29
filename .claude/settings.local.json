@@ -40,7 +40,13 @@
       "Bash(ls /Users/mehdi/MyProject/blitz-pay/specs/006*)",
       "Bash(./gradlew compileKotlin compileContractTestKotlin)",
       "Bash(cat /Users/mehdi/MyProject/blitz-pay/build/test-results/contractTest/*.xml)",
-      "Bash(./gradlew check *)"
+      "Bash(./gradlew check *)",
+      "Bash(.specify/scripts/bash/check-prerequisites.sh *)",
+      "Bash(./gradlew compileKotlin --quiet)",
+      "Bash(python3 *)",
+      "Bash(xargs cat *)",
+      "Bash(git stash *)",
+      "Bash(./gradlew contractTest --tests \"com.elegant.software.blitzpay.merchant.MerchantContractTest\")"
     ]
   },
   "hooks": {

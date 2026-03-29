@@ -44,7 +44,27 @@ class MerchantApplication(
     var submittedAt: Instant? = null,
 
     @Column
-    var lastUpdatedAt: Instant = createdAt
+    var lastUpdatedAt: Instant = createdAt,
+
+    // Stripe merchant-level default credentials (branch may override)
+    @Column(name = "stripe_secret_key", length = 512)
+    var stripeSecretKey: String? = null,
+
+    @Column(name = "stripe_publishable_key", length = 512)
+    var stripePublishableKey: String? = null,
+
+    // Braintree merchant-level default credentials (branch may override)
+    @Column(name = "braintree_merchant_id")
+    var braintreeMerchantId: String? = null,
+
+    @Column(name = "braintree_public_key")
+    var braintreePublicKey: String? = null,
+
+    @Column(name = "braintree_private_key", length = 512)
+    var braintreePrivateKey: String? = null,
+
+    @Column(name = "braintree_environment", length = 64)
+    var braintreeEnvironment: String? = null,
 ) {
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
@@ -79,6 +99,9 @@ class MerchantApplication(
     @OneToOne(fetch = FetchType.EAGER, optional = true, cascade = [CascadeType.ALL], orphanRemoval = true)
     @JoinColumn(name = "monitoring_record_id")
     var monitoringRecord: MonitoringRecord? = null
+
+    @Embedded
+    var location: MerchantLocation? = null
 
     fun registerDirect(activatedAt: Instant = Instant.now()) {
         MerchantOnboardingLifecycle.requireTransition(status, MerchantOnboardingStatus.ACTIVE)
@@ -141,6 +164,16 @@ class MerchantApplication(
 
     fun updateLogo(storageKey: String) {
         businessProfile = businessProfile.copy(logoStorageKey = storageKey)
+        touch()
+    }
+
+    fun updateLocation(newLocation: MerchantLocation) {
+        location = newLocation
+        touch()
+    }
+
+    fun clearLocation() {
+        location = null
         touch()
     }
 

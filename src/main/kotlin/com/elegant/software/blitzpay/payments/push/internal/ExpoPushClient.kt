@@ -1,7 +1,7 @@
 package com.elegant.software.blitzpay.payments.push.internal
 
 import com.elegant.software.blitzpay.payments.push.config.ExpoPushProperties
-import mu.KotlinLogging
+import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
@@ -29,7 +29,7 @@ open class ExpoPushClient(
     private val properties: ExpoPushProperties,
     private val expoWebClient: WebClient,
 ) {
-    private val log = KotlinLogging.logger {}
+    private val log = LoggerFactory.getLogger(ExpoPushClient::class.java)
 
     open fun send(messages: List<ExpoMessage>): List<ExpoTicket> {
         if (messages.isEmpty()) return emptyList()
@@ -62,7 +62,7 @@ open class ExpoPushClient(
             }
         }
     } catch (ex: Exception) {
-        log.warn(ex) { "expo push batch failed size=${batch.size}" }
+        log.error("expo push batch failed size={}", batch.size, ex)
         batch.map { ExpoTicket(it.to, null, ExpoTicket.Status.ERROR, "transport_error") }
     }
 

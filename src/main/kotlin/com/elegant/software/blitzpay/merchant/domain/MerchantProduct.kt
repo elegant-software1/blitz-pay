@@ -29,11 +29,14 @@ class MerchantProduct(
     @Column(nullable = false)
     var name: String,
 
+    @Column(length = 2000)
+    var description: String? = null,
+
     @Column(name = "unit_price", nullable = false, precision = 12, scale = 4)
     var unitPrice: BigDecimal,
 
-    @Column(name = "image_url")
-    var imageUrl: String? = null,
+    @Column(name = "image_storage_key")
+    var imageStorageKey: String? = null,
 
     @Column(nullable = false)
     var active: Boolean = true,
@@ -42,18 +45,24 @@ class MerchantProduct(
     val createdAt: Instant = Instant.now(),
 
     @Column(name = "updated_at", nullable = false)
-    var updatedAt: Instant = createdAt
+    var updatedAt: Instant = createdAt,
+
+    @Column(name = "merchant_branch_id")
+    var merchantBranchId: UUID? = null,
 ) {
     fun deactivate(at: Instant = Instant.now()) {
         active = false
         updatedAt = at
     }
 
-    fun update(name: String, unitPrice: BigDecimal, imageUrl: String?, at: Instant = Instant.now()) {
+    fun update(name: String, description: String?, unitPrice: BigDecimal, imageStorageKey: String?, at: Instant = Instant.now()) {
+        require(name.isNotBlank()) { "name must not be blank" }
+        require(description == null || description.length <= 2_000) { "description must be <= 2000 characters" }
         require(unitPrice >= BigDecimal.ZERO) { "unitPrice must be >= 0" }
-        this.name = name
+        this.name = name.trim()
+        this.description = description?.trim()?.ifBlank { null }
         this.unitPrice = unitPrice
-        this.imageUrl = imageUrl
+        this.imageStorageKey = imageStorageKey
         this.updatedAt = at
     }
 }

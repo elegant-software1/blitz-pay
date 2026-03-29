@@ -1,8 +1,8 @@
 # API Contract: Merchant Product Catalog
 
-**Feature Branch**: `001-merchant-onboarding`
-**Date**: 2026-04-19
-**Module**: `merchant`
+**Feature Branch**: `001-merchant-onboarding`  
+**Date**: 2026-04-21  
+**Module**: `merchant`  
 **Base path**: `/v1/merchants/{merchantId}/products`
 
 ---
@@ -10,69 +10,94 @@
 ## Security
 
 All endpoints require an authenticated principal. `{merchantId}` in the path is validated against the principal's merchant reference:
-- `MERCHANT_APPLICANT` role: may only access their own `{merchantId}`.
-- `OPERATIONS_REVIEWER` / `SYSTEM` role: may access any `{merchantId}`.
+
+- `MERCHANT_APPLICANT`: may only access their own `{merchantId}`.
+- `OPERATIONS_REVIEWER` / `SYSTEM`: may access any `{merchantId}`.
 
 Requests where `{merchantId}` does not match the principal's entitlement return `403 Forbidden`.
 
+Product images are private objects in S3-compatible storage. API responses may include `imageUrl`, but that value is a short-lived signed retrieval URL generated after authorization succeeds.
+
 ---
 
-## Endpoints
-
-### 1. Create Product
-
-**`POST /v1/merchants/{merchantId}/products`**
-
-Creates a new active product for the given merchant.
-
-#### Request
-
-```json
-{
-  "name": "Artisan Coffee Blend 250g",
-  "unitPrice": 12.50,
-  "imageUrl": "https://cdn.blitzpay.io/merchant/abc123/products/img1.jpg"
-}
-```
-
-| Field | Type | Required | Constraints |
-|-------|------|----------|-------------|
-| `name` | string | YES | 1–255 characters |
-| `unitPrice` | number | YES | ≥ 0, up to 4 decimal places |
-| `imageUrl` | string | NO | Valid HTTPS URL, ≤ 2048 characters |
-
-#### Response `201 Created`
+## Common Response Shape
 
 ```json
 {
   "productId": "550e8400-e29b-41d4-a716-446655440000",
   "merchantId": "7b3d9f00-1234-4abc-8765-000000000001",
   "name": "Artisan Coffee Blend 250g",
+  "description": "**Single-origin** medium roast with cocoa notes.",
   "unitPrice": 12.50,
-  "imageUrl": "https://cdn.blitzpay.io/merchant/abc123/products/img1.jpg",
+  "imageUrl": "http://localhost:9000/blitzpay/merchants/7b3d9f00-1234-4abc-8765-000000000001/products/550e8400-e29b-41d4-a716-446655440000/image.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256...",
   "active": true,
-  "createdAt": "2026-04-19T10:00:00Z",
-  "updatedAt": "2026-04-19T10:00:00Z"
+  "createdAt": "2026-04-21T10:00:00Z",
+  "updatedAt": "2026-04-21T10:00:00Z"
 }
 ```
 
-#### Error responses
+Rules:
 
-| Status | Condition |
-|--------|-----------|
-| `400 Bad Request` | `name` blank, `unitPrice` negative or non-numeric |
-| `403 Forbidden` | Principal not entitled to `{merchantId}` |
-| `404 Not Found` | `{merchantId}` does not exist |
+- `imageUrl` is `null` when no image is stored or when the stored object key cannot be resolved.
+- `imageUrl` is never persisted as a database URL.
+- The persisted image reference is a server-generated object key.
 
 ---
 
-### 2. List Active Products
+## 1. Create Product
+
+**`POST /v1/merchants/{merchantId}/products`**
+
+Creates a new active product for the given merchant. Accepts multipart product fields and an optional image file.
+
+### Request
+
+```http
+POST /v1/merchants/{merchantId}/products
+Content-Type: multipart/form-data
+Accept: application/json
+```
+
+| Part | Type | Required | Constraints |
+|------|------|----------|-------------|
+| `name` | form field | YES | 1-255 characters after trim |
+| `description` | form field | NO | Rich-text/Markdown, max 2,000 characters |
+| `unitPrice` | form field | YES | Decimal number `>= 0`, up to 4 fractional digits |
+| `image` | file | NO | JPEG, PNG, or WebP; max 5 MB |
+
+Example:
+
+```bash
+curl -X POST "http://localhost:8080/v1/merchants/{merchantId}/products" \
+  -H "Accept: application/json" \
+  -F "name=Artisan Coffee Blend 250g" \
+  -F "description=**Single-origin** medium roast with cocoa notes." \
+  -F "unitPrice=12.50" \
+  -F "image=@./coffee.webp;type=image/webp"
+```
+
+### Response `201 Created`
+
+Returns the common product response shape.
+
+### Error Responses
+
+| Status | Condition |
+|--------|-----------|
+| `400 Bad Request` | `name` blank, description longer than 2,000 characters, `unitPrice` negative/non-numeric, unsupported image type, image larger than 5 MB |
+| `403 Forbidden` | Principal not entitled to `{merchantId}` |
+| `404 Not Found` | `{merchantId}` does not exist |
+| `502 Bad Gateway` or `503 Service Unavailable` | Object storage upload failed; no product record is persisted |
+
+---
+
+## 2. List Active Products
 
 **`GET /v1/merchants/{merchantId}/products`**
 
-Returns all active products for the merchant. Inactive (soft-deleted) products are excluded.
+Returns all active products for the merchant. Inactive products are excluded.
 
-#### Response `200 OK`
+### Response `200 OK`
 
 ```json
 {
@@ -80,43 +105,34 @@ Returns all active products for the merchant. Inactive (soft-deleted) products a
   "products": [
     {
       "productId": "550e8400-e29b-41d4-a716-446655440000",
+      "merchantId": "7b3d9f00-1234-4abc-8765-000000000001",
       "name": "Artisan Coffee Blend 250g",
+      "description": "**Single-origin** medium roast with cocoa notes.",
       "unitPrice": 12.50,
-      "imageUrl": "https://cdn.blitzpay.io/merchant/abc123/products/img1.jpg",
+      "imageUrl": "http://localhost:9000/blitzpay/merchants/.../image.webp?X-Amz-Algorithm=AWS4-HMAC-SHA256...",
       "active": true,
-      "createdAt": "2026-04-19T10:00:00Z",
-      "updatedAt": "2026-04-19T10:00:00Z"
+      "createdAt": "2026-04-21T10:00:00Z",
+      "updatedAt": "2026-04-21T10:00:00Z"
     }
   ]
 }
 ```
 
-Empty catalog returns `products: []`, not 404.
+Empty catalog returns `products: []`, not `404`.
 
 ---
 
-### 3. Get Product
+## 3. Get Product
 
 **`GET /v1/merchants/{merchantId}/products/{productId}`**
 
-Returns a single product. Returns `404` for both non-existent and inactive (soft-deleted) products to prevent enumeration.
+Returns a single active product. Returns `404` for both non-existent and inactive products to prevent enumeration.
 
-#### Response `200 OK`
+### Response `200 OK`
 
-```json
-{
-  "productId": "550e8400-e29b-41d4-a716-446655440000",
-  "merchantId": "7b3d9f00-1234-4abc-8765-000000000001",
-  "name": "Artisan Coffee Blend 250g",
-  "unitPrice": 12.50,
-  "imageUrl": "https://cdn.blitzpay.io/merchant/abc123/products/img1.jpg",
-  "active": true,
-  "createdAt": "2026-04-19T10:00:00Z",
-  "updatedAt": "2026-04-19T10:00:00Z"
-}
-```
+Returns the common product response shape.
 
-#### Error responses
+### Error Responses
 
 | Status | Condition |
 |--------|-----------|
@@ -125,47 +141,53 @@ Returns a single product. Returns `404` for both non-existent and inactive (soft
 
 ---
 
-### 4. Update Product
+## 4. Update Product
 
 **`PUT /v1/merchants/{merchantId}/products/{productId}`**
 
-Replaces all mutable fields (name, unitPrice, imageUrl). Passing `null` for `imageUrl` removes the existing image.
+Replaces mutable product fields. If an `image` part is present, the server validates and uploads it, then stores the resulting object key. If no `image` part is present, the existing image key remains unchanged.
 
-#### Request
+### Request
 
-```json
-{
-  "name": "Artisan Coffee Blend 500g",
-  "unitPrice": 22.00,
-  "imageUrl": null
-}
+```http
+PUT /v1/merchants/{merchantId}/products/{productId}
+Content-Type: multipart/form-data
+Accept: application/json
 ```
 
-#### Response `200 OK`
+| Part | Type | Required | Constraints |
+|------|------|----------|-------------|
+| `name` | form field | YES | 1-255 characters after trim |
+| `description` | form field | NO | Rich-text/Markdown, max 2,000 characters |
+| `unitPrice` | form field | YES | Decimal number `>= 0`, up to 4 fractional digits |
+| `image` | file | NO | JPEG, PNG, or WebP; max 5 MB |
 
-Same shape as Create response, with updated `updatedAt`.
+### Response `200 OK`
 
-#### Error responses
+Returns the common product response shape with a fresh signed `imageUrl` when an image is present.
+
+### Error Responses
 
 | Status | Condition |
 |--------|-----------|
-| `400 Bad Request` | Validation failure |
+| `400 Bad Request` | Validation failure, unsupported image type, oversized image |
 | `403 Forbidden` | Principal not entitled |
 | `404 Not Found` | Product not found or soft-deleted |
+| `502 Bad Gateway` or `503 Service Unavailable` | Object storage upload failed; existing product remains unchanged |
 
 ---
 
-### 5. Deactivate Product (Soft Delete)
+## 5. Deactivate Product
 
 **`DELETE /v1/merchants/{merchantId}/products/{productId}`**
 
-Sets `active = false`. The product is retained in the database and is no longer returned by list/get operations.
+Sets `active = false`. The product and image key are retained for record-keeping.
 
-#### Response `204 No Content`
+### Response `204 No Content`
 
 No body.
 
-#### Error responses
+### Error Responses
 
 | Status | Condition |
 |--------|-----------|
@@ -174,19 +196,24 @@ No body.
 
 ---
 
-## Common Headers
+## Validation Details
 
-| Header | Required | Notes |
-|--------|----------|-------|
-| `Content-Type: application/json` | YES for POST/PUT | |
-| `Accept: application/json` | Recommended | |
+| Rule | Result |
+|------|--------|
+| Missing `name` or blank `name` | `400 Bad Request` |
+| `description` longer than 2,000 characters | `400 Bad Request` |
+| Negative `unitPrice` | `400 Bad Request` |
+| Image content type not in `image/jpeg`, `image/png`, `image/webp` | `400 Bad Request` |
+| Image exceeds 5 MB | `400 Bad Request` |
+| Storage upload fails | Product create/update fails; no partial product record is persisted |
+| Stored image key cannot be signed/resolved on read | Response uses `imageUrl: null` |
 
 ---
 
 ## Tenant Isolation Guarantee
 
-Every response for `GET /v1/merchants/{merchantId}/products` contains only products where `merchant_application_id = {merchantId}`:
+Every product response contains only products where `merchant_application_id = {merchantId}`:
+
 - Enforced at application layer via Hibernate `tenantFilter`
 - Enforced at DB layer via PostgreSQL RLS policy `merchant_tenant_isolation`
-
-A request that receives a `200 OK` listing will never contain products from a different merchant.
+- Object keys are scoped under `merchants/{merchantId}/products/{productId}/...`
