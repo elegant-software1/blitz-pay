@@ -29,9 +29,9 @@
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
-## Future Work (Deferred)
+## Background Work
 
-- [ ] Implement background job to validate and enrich `googlePlaceId` via Google Maps API (address, reviews resolution) — deferred per clarification session 2026-04-19.
+- [x] Implement background job to validate and enrich `googlePlaceId` via Google Maps API (address, reviews resolution) — now in scope and covered by `tasks.md`.
 
 ## Notes
 

@@ -5,14 +5,22 @@ import com.elegant.software.blitzpay.merchant.api.ProductListResponse
 import com.elegant.software.blitzpay.merchant.api.ProductResponse
 import com.elegant.software.blitzpay.merchant.api.UpdateProductRequest
 import com.elegant.software.blitzpay.merchant.application.MerchantProductService
+import com.elegant.software.blitzpay.merchant.application.ProductImageUpload
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.core.io.buffer.DataBufferUtils
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.http.codec.multipart.FilePart
 import org.springframework.web.bind.annotation.*
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
+import java.math.BigDecimal
+import java.util.Optional
 import java.util.UUID
+
+data class ProductErrorResponse(val error: String)
 
 @Tag(name = "Merchant Products", description = "Product catalog management for merchants")
 @RestController
@@ -22,13 +30,24 @@ class MerchantProductController(
 ) {
 
     @Operation(summary = "Create a product for the merchant")
-    @PostMapping
+    @PostMapping(consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun create(
         @PathVariable merchantId: UUID,
-        @RequestBody request: CreateProductRequest
+        @RequestPart("name") name: String,
+        @RequestPart("unitPrice") unitPrice: String,
+        @RequestPart("description", required = false) description: String?,
+        @RequestPart("image", required = false) image: FilePart?
     ): Mono<ResponseEntity<ProductResponse>> =
-        Mono.fromCallable { merchantProductService.create(merchantId, request) }
-            .subscribeOn(Schedulers.boundedElastic())
+        image.toProductImageUpload()
+            .flatMap { upload ->
+                Mono.fromCallable {
+                    merchantProductService.create(
+                        merchantId,
+                        CreateProductRequest(name = name, description = description, unitPrice = BigDecimal(unitPrice)),
+                        upload.orElse(null)
+                    )
+                }.subscribeOn(Schedulers.boundedElastic())
+            }
             .map { ResponseEntity.status(HttpStatus.CREATED).body(it) }
 
     @Operation(summary = "List all active products for the merchant")
@@ -49,14 +68,26 @@ class MerchantProductController(
             .map { ResponseEntity.ok(it) }
 
     @Operation(summary = "Update a product's name, price, and image")
-    @PutMapping("/{productId}")
+    @PutMapping("/{productId}", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun update(
         @PathVariable merchantId: UUID,
         @PathVariable productId: UUID,
-        @RequestBody request: UpdateProductRequest
+        @RequestPart("name") name: String,
+        @RequestPart("unitPrice") unitPrice: String,
+        @RequestPart("description", required = false) description: String?,
+        @RequestPart("image", required = false) image: FilePart?
     ): Mono<ResponseEntity<ProductResponse>> =
-        Mono.fromCallable { merchantProductService.update(merchantId, productId, request) }
-            .subscribeOn(Schedulers.boundedElastic())
+        image.toProductImageUpload()
+            .flatMap { upload ->
+                Mono.fromCallable {
+                    merchantProductService.update(
+                        merchantId,
+                        productId,
+                        UpdateProductRequest(name = name, description = description, unitPrice = BigDecimal(unitPrice)),
+                        upload.orElse(null)
+                    )
+                }.subscribeOn(Schedulers.boundedElastic())
+            }
             .map { ResponseEntity.ok(it) }
 
     @Operation(summary = "Soft-delete a product (sets active = false)")
@@ -68,4 +99,32 @@ class MerchantProductController(
         Mono.fromCallable { merchantProductService.deactivate(merchantId, productId) }
             .subscribeOn(Schedulers.boundedElastic())
             .map { ResponseEntity.noContent().build<Void>() }
+
+    private fun FilePart?.toProductImageUpload(): Mono<Optional<ProductImageUpload>> {
+        if (this == null) return Mono.just(Optional.empty())
+        val contentType = headers().contentType?.toString()
+            ?: throw IllegalArgumentException("Product image content type is required")
+        return DataBufferUtils.join(content())
+            .map { buffer ->
+                try {
+                    val bytes = ByteArray(buffer.readableByteCount())
+                    buffer.read(bytes)
+                    Optional.of(ProductImageUpload(contentType = contentType, bytes = bytes))
+                } finally {
+                    DataBufferUtils.release(buffer)
+                }
+            }
+    }
+
+    @ExceptionHandler(IllegalArgumentException::class)
+    fun badRequest(ex: IllegalArgumentException): ResponseEntity<ProductErrorResponse> =
+        ResponseEntity.badRequest().body(ProductErrorResponse(ex.message ?: "Invalid product request"))
+
+    @ExceptionHandler(NoSuchElementException::class)
+    fun notFound(ex: NoSuchElementException): ResponseEntity<ProductErrorResponse> =
+        ResponseEntity.status(HttpStatus.NOT_FOUND).body(ProductErrorResponse(ex.message ?: "Product not found"))
+
+    @ExceptionHandler(IllegalStateException::class)
+    fun storageUnavailable(ex: IllegalStateException): ResponseEntity<ProductErrorResponse> =
+        ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ProductErrorResponse(ex.message ?: "Product storage unavailable"))
 }

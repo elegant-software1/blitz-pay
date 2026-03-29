@@ -106,6 +106,48 @@ None — the spec contained no clarification markers.
 
 ---
 
+## Decision 9: Merchant entity identity (added 2026-04-20)
+
+**Decision**: Extend `MerchantApplication` with optional payment credential columns rather than creating a separate `Merchant` entity. `MerchantApplication` acts as the canonical merchant in the payment routing context.
+
+**Rationale**: The user confirmed `Merchant` mirrors `MerchantApplication` fields exactly. A separate entity would add a synchronisation write path on approval and a join on every credential lookup. Adding nullable payment credential columns achieves the same result with `ddl-auto: update` and no migration complexity.
+
+**Alternatives considered**: Separate `Merchant` entity with one-to-one link to `MerchantApplication`. Rejected — doubles the write path, adds a join, requires a domain event from onboarding module to a new module.
+
+---
+
+## Decision 10: Stripe per-request credential injection (added 2026-04-20)
+
+**Decision**: Remove the `@PostConstruct` global `Stripe.apiKey` assignment. Use `RequestOptions.builder().setApiKey(resolvedKey).build()` per API call.
+
+**Rationale**: The current global key assignment is a security boundary violation in a multi-merchant context — one branch's key silently overrides another. `RequestOptions` is the SDK-native thread-safe per-call credential mechanism.
+
+---
+
+## Decision 11: BraintreeGateway per-branch factory with in-memory cache (added 2026-04-20)
+
+**Decision**: Replace the single `Optional<BraintreeGateway>` bean with a `BraintreeGatewayFactory` that creates or returns a cached `BraintreeGateway` keyed by credential fingerprint (hash of merchantId + publicKey).
+
+**Rationale**: `BraintreeGateway` opens connection pools — constructing one per request would exhaust resources. A `ConcurrentHashMap<String, BraintreeGateway>` keyed on credential fingerprint allows safe reuse.
+
+---
+
+## Decision 12: MerchantCredentialResolver as @NamedInterface (added 2026-04-20)
+
+**Decision**: Expose `MerchantCredentialResolver` in `merchant.api` via `@NamedInterface` so `payments.stripe` and `payments.braintree` can call it without violating Modulith boundaries.
+
+**Rationale**: Direct `internal` package coupling across modules fails `ApplicationModules.verify()`. `@NamedInterface` is the established project pattern.
+
+---
+
+## Decision 13: MerchantProduct backward compatibility (added 2026-04-20)
+
+**Decision**: Add `merchantBranchId` as a nullable column to `MerchantProduct`. Existing rows keep `merchantApplicationId`; new product creation requires `merchantBranchId`. Branch resolution falls back via `merchantApplicationId` when `merchantBranchId` is absent.
+
+**Rationale**: `ddl-auto: update` adds columns non-destructively. A hard FK replace would break existing products. The nullable-with-fallback approach is forward-compatible.
+
+---
+
 ## Dependencies to add
 
 | Library | Coordinates | Version | Purpose |

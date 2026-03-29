@@ -6,7 +6,7 @@ import com.elegant.software.blitzpay.payments.push.persistence.DeliveryOutcome
 import com.elegant.software.blitzpay.payments.push.persistence.DeviceRegistrationRepository
 import com.elegant.software.blitzpay.payments.push.persistence.PushDeliveryAttemptEntity
 import com.elegant.software.blitzpay.payments.push.persistence.PushDeliveryAttemptRepository
-import mu.KotlinLogging
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.time.Instant
 import java.util.UUID
@@ -17,12 +17,12 @@ class PushDispatcher(
     private val pushClient: ExpoPushClient,
     private val attemptRepository: PushDeliveryAttemptRepository,
 ) {
-    private val log = KotlinLogging.logger {}
+    private val log = LoggerFactory.getLogger(PushDispatcher::class.java)
 
     fun dispatch(event: PaymentStatusChanged) {
         val devices = deviceRepository.findByPaymentRequestIdAndInvalidFalse(event.paymentRequestId)
         if (devices.isEmpty()) {
-            log.info { "no devices registered for payment request=${event.paymentRequestId}" }
+            log.info("no devices registered for payment request={}", event.paymentRequestId)
             return
         }
 
@@ -42,7 +42,7 @@ class PushDispatcher(
         val tickets = try {
             pushClient.send(messages)
         } catch (ex: Exception) {
-            log.error(ex) { "expo push dispatch failed request=${event.paymentRequestId}" }
+            log.error("expo push dispatch failed request={}", event.paymentRequestId, ex)
             return
         }
 
@@ -63,7 +63,7 @@ class PushDispatcher(
                     )
                 )
             } catch (ex: Exception) {
-                log.warn(ex) { "failed to log push delivery attempt token=${ticket.token}" }
+                log.warn("failed to log push delivery attempt token={}", ticket.token, ex)
             }
         }
     }

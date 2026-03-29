@@ -3,7 +3,7 @@ info:
   title: OpenAPI definition
   version: v0
 servers:
-- url: http://localhost:57100
+- url: http://localhost:50934
   description: Generated server url
 tags:
 - name: Braintree
@@ -23,8 +23,12 @@ tags:
   externalDocs:
     description: Spring Boot Actuator Web API Documentation
     url: https://docs.spring.io/spring-boot/docs/current/actuator-api/html/
+- name: Merchant Location
+  description: Geolocation and geofencing for merchants
 - name: Merchant Products
   description: Product catalog management for merchants
+- name: Merchant Branches
+  description: Manage branches under a merchant
 - name: QR Payments
   description: Operations related to QR payments
 paths:
@@ -74,10 +78,22 @@ paths:
           format: uuid
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/UpdateProductRequest"
-        required: true
+              type: object
+              properties:
+                name:
+                  type: string
+                unitPrice:
+                  type: string
+                description:
+                  type: string
+                image:
+                  type: string
+                  format: binary
+              required:
+              - name
+              - unitPrice
       responses:
         "200":
           description: OK
@@ -98,6 +114,71 @@ paths:
           type: string
           format: uuid
       - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+  /{version}/merchants/{merchantId}/location:
+    get:
+      tags:
+      - Merchant Location
+      summary: Get a merchant's current location
+      description: Returns 404 if the merchant has no location set.
+      operationId: getLocation
+      parameters:
+      - name: merchantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MerchantLocationResponse"
+    put:
+      tags:
+      - Merchant Location
+      summary: Set or update a merchant's location and geofence radius
+      description: Idempotent — replaces any existing location. geofenceRadiusMeters
+        must be > 0. googlePlaceId is optional and used to correlate with Google Maps.
+      operationId: setLocation
+      parameters:
+      - name: merchantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetMerchantLocationRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MerchantLocationResponse"
+    delete:
+      tags:
+      - Merchant Location
+      summary: Remove a merchant's location
+      description: "Clears latitude, longitude, geofence radius, and googlePlaceId.\
+        \ Returns 204 on success."
+      operationId: deleteLocation
+      parameters:
+      - name: merchantId
         in: path
         required: true
         schema:
@@ -198,6 +279,12 @@ paths:
       - Braintree
       summary: Generate a Braintree client token for the mobile SDK.
       operationId: clientToken
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientTokenRequest"
+        required: true
       responses:
         "200":
           description: OK
@@ -258,10 +345,22 @@ paths:
           format: uuid
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/CreateProductRequest"
-        required: true
+              type: object
+              properties:
+                name:
+                  type: string
+                unitPrice:
+                  type: string
+                description:
+                  type: string
+                image:
+                  type: string
+                  format: binary
+              required:
+              - name
+              - unitPrice
       responses:
         "200":
           description: OK
@@ -269,6 +368,51 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ProductResponse"
+  /{version}/merchants/{merchantId}/branches:
+    get:
+      tags:
+      - Merchant Branches
+      summary: List active branches for a merchant
+      operationId: list_1
+      parameters:
+      - name: merchantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+    post:
+      tags:
+      - Merchant Branches
+      summary: Create a new branch under a merchant
+      operationId: create_1
+      parameters:
+      - name: merchantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBranchRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
   /{version}/merchants/{id}/activate:
     post:
       tags:
@@ -295,7 +439,7 @@ paths:
       - Merchant Onboarding
       summary: "Register a new merchant (directly ACTIVE, duplicate registration number\
         \ rejected with 409)"
-      operationId: create_1
+      operationId: create_2
       requestBody:
         content:
           application/json:
@@ -411,12 +555,38 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/PaymentStatusResponse"
+  /{version}/merchants/{merchantId}/branches/{branchId}:
+    get:
+      tags:
+      - Merchant Branches
+      summary: Get a branch by ID
+      operationId: get_1
+      parameters:
+      - name: merchantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
   /{version}/merchants/{id}:
     get:
       tags:
       - Merchant Onboarding
       summary: Get merchant application details
-      operationId: get_1
+      operationId: get_2
       parameters:
       - name: id
         in: path
@@ -431,6 +601,43 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/MerchantSummary"
+  /{version}/merchants/nearby:
+    get:
+      tags:
+      - Merchant Location
+      summary: Find merchants near a position
+      description: "Returns merchants whose store location falls within radiusMeters\
+        \ of (lat, lng). Intended for mobile geofence-enter events. Default search\
+        \ radius is 500 m. Results are ordered by ascending distance. Only merchants\
+        \ with a location set are returned."
+      operationId: findNearby
+      parameters:
+      - name: lat
+        in: query
+        required: true
+        schema:
+          type: number
+          format: double
+      - name: lng
+        in: query
+        required: true
+        schema:
+          type: number
+          format: double
+      - name: radiusMeters
+        in: query
+        required: false
+        schema:
+          type: number
+          format: double
+          default: 500.0
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NearbyMerchantsResponse"
   /actuator/metrics/{requiredMetricName}:
     get:
       tags:
@@ -577,18 +784,6 @@ paths:
           description: No Content
 components:
   schemas:
-    UpdateProductRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        unitPrice:
-          type: number
-        imageUrl:
-          type: string
-      required:
-      - name
-      - unitPrice
     ProductResponse:
       type: object
       properties:
@@ -599,6 +794,8 @@ components:
           type: string
           format: uuid
         name:
+          type: string
+        description:
           type: string
         unitPrice:
           type: number
@@ -620,6 +817,79 @@ components:
       - productId
       - unitPrice
       - updatedAt
+    SetMerchantLocationRequest:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        geofenceRadiusMeters:
+          type: integer
+          format: int32
+        googlePlaceId:
+          type: string
+        addressLine1:
+          type: string
+        addressLine2:
+          type: string
+        city:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+      required:
+      - geofenceRadiusMeters
+      - latitude
+      - longitude
+    MerchantLocationResponse:
+      type: object
+      properties:
+        merchantId:
+          type: string
+          format: uuid
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        geofenceRadiusMeters:
+          type: integer
+          format: int32
+        googlePlaceId:
+          type: string
+        addressLine1:
+          type: string
+        addressLine2:
+          type: string
+        city:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+        placeFormattedAddress:
+          type: string
+        placeRating:
+          type: number
+          format: double
+        placeReviewCount:
+          type: integer
+          format: int32
+        placeEnrichmentStatus:
+          type: string
+        placeEnrichedAt:
+          type: string
+          format: date-time
+      required:
+      - geofenceRadiusMeters
+      - latitude
+      - longitude
+      - merchantId
     SetLogoRequest:
       type: object
       properties:
@@ -673,6 +943,15 @@ components:
           format: double
         currency:
           type: string
+        merchantId:
+          type: string
+          format: uuid
+        branchId:
+          type: string
+          format: uuid
+        productId:
+          type: string
+          format: uuid
     PaymentRequested:
       type: object
       properties:
@@ -696,6 +975,15 @@ components:
       - orderId
       - redirectReturnUri
       - userDisplayName
+    ClientTokenRequest:
+      type: object
+      properties:
+        merchantId:
+          type: string
+          format: uuid
+        branchId:
+          type: string
+          format: uuid
     CheckoutRequest:
       type: object
       properties:
@@ -708,18 +996,55 @@ components:
           type: string
         invoiceId:
           type: string
-    CreateProductRequest:
+        merchantId:
+          type: string
+          format: uuid
+        branchId:
+          type: string
+          format: uuid
+        productId:
+          type: string
+          format: uuid
+    CreateBranchRequest:
       type: object
       properties:
         name:
           type: string
-        unitPrice:
+        addressLine1:
+          type: string
+        addressLine2:
+          type: string
+        city:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+        latitude:
           type: number
-        imageUrl:
+          format: double
+        longitude:
+          type: number
+          format: double
+        geofenceRadiusMeters:
+          type: integer
+          format: int32
+        googlePlaceId:
+          type: string
+        stripeSecretKey:
+          type: string
+        stripePublishableKey:
+          type: string
+        braintreeMerchantId:
+          type: string
+        braintreePublicKey:
+          type: string
+        braintreePrivateKey:
+          type: string
+        braintreeEnvironment:
           type: string
       required:
       - name
-      - unitPrice
     CreateMerchantRequest:
       type: object
       properties:
@@ -906,6 +1231,44 @@ components:
       required:
       - merchantId
       - products
+    NearbyMerchantResponse:
+      type: object
+      properties:
+        merchantId:
+          type: string
+          format: uuid
+        legalBusinessName:
+          type: string
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        geofenceRadiusMeters:
+          type: integer
+          format: int32
+        googlePlaceId:
+          type: string
+        distanceMeters:
+          type: number
+          format: double
+      required:
+      - distanceMeters
+      - geofenceRadiusMeters
+      - latitude
+      - legalBusinessName
+      - longitude
+      - merchantId
+    NearbyMerchantsResponse:
+      type: object
+      properties:
+        merchants:
+          type: array
+          items:
+            $ref: "#/components/schemas/NearbyMerchantResponse"
+      required:
+      - merchants
     Link:
       type: object
       properties:

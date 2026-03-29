@@ -11,8 +11,8 @@
     "body": {
       "amount": {
         "type": "number",
-        "required": true,
-        "description": "Payment amount as a decimal (e.g. 12.50 for €12.50). Must be positive and finite.",
+        "required": "conditional — required unless productId is supplied",
+        "description": "Payment amount as a decimal (e.g. 12.50 for €12.50). Must be positive and finite. Defaults to product.unitPrice when productId is supplied.",
         "example": 12.50
       },
       "currency": {
@@ -20,6 +20,27 @@
         "required": false,
         "description": "ISO 4217 currency code, lowercase. Defaults to 'eur' if absent.",
         "example": "eur"
+      },
+      "merchantId": {
+        "type": "string",
+        "format": "uuid",
+        "required": true,
+        "description": "ID of the merchant. Used to resolve Stripe credentials (branch-level override > merchant default > global config).",
+        "example": "a1b2c3d4-0000-0000-0000-000000000001"
+      },
+      "branchId": {
+        "type": "string",
+        "format": "uuid",
+        "required": false,
+        "description": "ID of the merchant branch. Optional — server derives from productId context if omitted. Returns 400 if branch cannot be resolved.",
+        "example": "b2c3d4e5-0000-0000-0000-000000000002"
+      },
+      "productId": {
+        "type": "string",
+        "format": "uuid",
+        "required": false,
+        "description": "ID of the product being purchased. If supplied, product.unitPrice is used as the default amount and branch is derived from the product.",
+        "example": "c3d4e5f6-0000-0000-0000-000000000003"
       }
     }
   },
@@ -41,12 +62,22 @@
       }
     },
     "400": {
-      "description": "Invalid request — amount missing, zero, negative, or not a number",
+      "description": "Invalid request — amount missing/invalid, merchantId missing, or branch cannot be resolved",
       "contentType": "application/json",
       "body": {
         "error": {
           "type": "string",
-          "example": "amount must be a positive number"
+          "example": "amount must be a positive number | merchantId is required | branch cannot be resolved"
+        }
+      }
+    },
+    "503": {
+      "description": "No Stripe credentials configured at branch or merchant level",
+      "contentType": "application/json",
+      "body": {
+        "error": {
+          "type": "string",
+          "example": "Payment provider not configured"
         }
       }
     },

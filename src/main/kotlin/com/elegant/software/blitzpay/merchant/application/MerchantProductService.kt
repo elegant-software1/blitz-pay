@@ -7,12 +7,13 @@ import com.elegant.software.blitzpay.merchant.api.UpdateProductRequest
 import com.elegant.software.blitzpay.merchant.domain.MerchantProduct
 import com.elegant.software.blitzpay.merchant.repository.MerchantApplicationRepository
 import com.elegant.software.blitzpay.merchant.repository.MerchantProductRepository
+import com.elegant.software.blitzpay.storage.StorageService
 import jakarta.persistence.EntityManager
 import org.hibernate.Session
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.Instant
+import java.math.BigDecimal
 import java.util.UUID
 
 @Service
@@ -20,22 +21,31 @@ import java.util.UUID
 class MerchantProductService(
     private val productRepository: MerchantProductRepository,
     private val merchantApplicationRepository: MerchantApplicationRepository,
-    private val entityManager: EntityManager
+    private val entityManager: EntityManager,
+    private val storageService: StorageService
 ) {
     private val log = LoggerFactory.getLogger(MerchantProductService::class.java)
 
-    fun create(merchantId: UUID, request: CreateProductRequest): ProductResponse {
+    fun create(merchantId: UUID, request: CreateProductRequest, image: ProductImageUpload? = null): ProductResponse {
         requireMerchantExists(merchantId)
-        require(request.name.isNotBlank()) { "Product name must not be blank" }
-        require(request.unitPrice >= java.math.BigDecimal.ZERO) { "unitPrice must be >= 0" }
+        validateProductFields(request.name, request.description, request.unitPrice)
+        val productId = UUID.randomUUID()
+        val imageStorageKey = image?.let { uploadImage(merchantId, productId, it) }
 
         val product = MerchantProduct(
+            id = productId,
             merchantApplicationId = merchantId,
             name = request.name.trim(),
+            description = ProductImagePolicy.normalizeDescription(request.description),
             unitPrice = request.unitPrice,
-            imageUrl = request.imageUrl
+            imageStorageKey = imageStorageKey
         )
-        val saved = productRepository.save(product)
+        val saved = try {
+            productRepository.save(product)
+        } catch (ex: RuntimeException) {
+            imageStorageKey?.let { cleanupUploadedImage(it) }
+            throw ex
+        }
         log.info("Product created: id={} merchant={}", saved.id, merchantId)
         return saved.toResponse(merchantId)
     }
@@ -57,17 +67,30 @@ class MerchantProductService(
         return product.toResponse(merchantId)
     }
 
-    fun update(merchantId: UUID, productId: UUID, request: UpdateProductRequest): ProductResponse {
+    fun update(merchantId: UUID, productId: UUID, request: UpdateProductRequest, image: ProductImageUpload? = null): ProductResponse {
         requireMerchantExists(merchantId)
-        require(request.name.isNotBlank()) { "Product name must not be blank" }
-        require(request.unitPrice >= java.math.BigDecimal.ZERO) { "unitPrice must be >= 0" }
+        validateProductFields(request.name, request.description, request.unitPrice)
 
         enableTenantFilter(merchantId)
         val product = productRepository.findByIdAndActiveTrue(productId)
             .orElseThrow { NoSuchElementException("Product not found: $productId") }
 
-        product.update(request.name.trim(), request.unitPrice, request.imageUrl)
-        val saved = productRepository.save(product)
+        val previousImageStorageKey = product.imageStorageKey
+        val newImageStorageKey = image?.let { uploadImage(merchantId, productId, it) } ?: previousImageStorageKey
+        product.update(
+            name = request.name.trim(),
+            description = ProductImagePolicy.normalizeDescription(request.description),
+            unitPrice = request.unitPrice,
+            imageStorageKey = newImageStorageKey
+        )
+        val saved = try {
+            productRepository.save(product)
+        } catch (ex: RuntimeException) {
+            if (newImageStorageKey != null && newImageStorageKey != previousImageStorageKey) {
+                cleanupUploadedImage(newImageStorageKey)
+            }
+            throw ex
+        }
         log.info("Product updated: id={} merchant={}", productId, merchantId)
         return saved.toResponse(merchantId)
     }
@@ -92,17 +115,42 @@ class MerchantProductService(
     private fun enableTenantFilter(merchantId: UUID) {
         val session = entityManager.unwrap(Session::class.java)
         session.enableFilter("tenantFilter").setParameter("merchantId", merchantId)
-        entityManager.createNativeQuery("SET LOCAL app.current_merchant_id = :mid")
+        entityManager.createNativeQuery("SELECT set_config('app.current_merchant_id', :mid, true)")
             .setParameter("mid", merchantId.toString())
-            .executeUpdate()
+            .singleResult
     }
+
+    private fun validateProductFields(name: String, description: String?, unitPrice: BigDecimal) {
+        require(name.isNotBlank()) { "Product name must not be blank" }
+        ProductImagePolicy.normalizeDescription(description)
+        require(unitPrice >= BigDecimal.ZERO) { "unitPrice must be >= 0" }
+    }
+
+    private fun uploadImage(merchantId: UUID, productId: UUID, image: ProductImageUpload): String {
+        val storageKey = "merchants/$merchantId/products/$productId/image.${image.extension}"
+        storageService.upload(storageKey, image.contentType, image.bytes)
+        return storageKey
+    }
+
+    private fun cleanupUploadedImage(storageKey: String) {
+        runCatching { storageService.delete(storageKey) }
+            .onFailure { log.warn("Failed to clean up uploaded product image key={}", storageKey, it) }
+    }
+
+    private fun signedImageUrl(storageKey: String?): String? =
+        storageKey?.let {
+            runCatching { storageService.presignDownload(it) }
+                .onFailure { ex -> log.warn("Failed to sign product image key={}", it, ex) }
+                .getOrNull()
+        }
 
     private fun MerchantProduct.toResponse(merchantId: UUID) = ProductResponse(
         productId = id,
         merchantId = merchantId,
         name = name,
+        description = description,
         unitPrice = unitPrice,
-        imageUrl = imageUrl,
+        imageUrl = signedImageUrl(imageStorageKey),
         active = active,
         createdAt = createdAt,
         updatedAt = updatedAt
