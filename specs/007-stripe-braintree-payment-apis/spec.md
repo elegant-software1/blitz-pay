@@ -62,6 +62,10 @@ When a user pays an invoice, the payment can be linked to that invoice at the ti
 - How does the system handle a Braintree client token request when the provider is temporarily unreachable?
 - What happens when a Braintree nonce is replayed (submitted more than once)?
 - How does the system behave under high concurrency (many simultaneous payment session requests)?
+- What happens when neither the branch nor the merchant has configured provider credentials (FR-012: return 503)?
+- What happens when `branchId` is omitted and the product belongs to multiple branches (ambiguous resolution)?
+- What happens when the caller supplies an explicit amount that differs from the product's stored price — should the discrepancy be logged?
+- What happens when a MerchantBranch is deleted but its associated transactions still exist?
 
 ## Requirements *(mandatory)*
 
@@ -77,13 +81,20 @@ When a user pays an invoice, the payment can be linked to that invoice at the ti
 - **FR-008**: All endpoints MUST be accessible over HTTPS and MUST NOT expose secret provider credentials in any response body.
 - **FR-009**: Stripe payment capability and Braintree payment capability MUST be implemented as independent, separately configurable modules; disabling or misconfiguring one MUST NOT affect the availability or behaviour of the other.
 - **FR-010**: The system MUST log each payment event (payment session initiation, checkout success, checkout failure) including: provider name, transaction or session ID, amount, and currency. Secret keys, payment nonces, card details, and private credentials MUST never appear in log output.
+- **FR-011**: Each payment transaction MUST be associated with both a Merchant and a MerchantBranch; these references MUST be included in the transaction record and log output.
+- **FR-012**: Payment provider credentials MUST be resolved per-request: branch-level Stripe/Braintree credentials take precedence over the merchant's default credentials; if neither is configured, the system MUST return a 503.
+- **FR-013**: Payment endpoints MUST accept an optional `branchId` parameter. If omitted, the branch MUST be resolved from the product context or authenticated session. If the branch cannot be resolved, the system MUST return a 400 error.
+- **FR-014**: When a payment request references a Product, the system MUST use the product's stored price as the default payment amount. The caller MAY supply an explicit amount to override the product price.
 
 ### Key Entities
 
-- **Card Payment Session**: A short-lived authorisation context created with the card provider, identified by a client secret and associated with a specific amount and currency.
-- **Braintree Client Token**: A short-lived token issued by the server to allow the mobile SDK to communicate with Braintree; scoped to the merchant account.
+- **Merchant**: Top-level business entity; mirrors the existing `MerchantApplication` structure (same fields, renamed). Holds default Stripe/Braintree credentials used when no branch-level override is present.
+- **MerchantBranch**: A sub-entity of Merchant representing a physical or logical branch. May carry its own Stripe/Braintree credentials that override the merchant defaults. Products belong to a MerchantBranch.
+- **Product**: A purchasable item belonging to a MerchantBranch. Its stored price serves as the default payment amount when used in a payment request.
+- **Card Payment Session**: A short-lived authorisation context created with the card provider, identified by a client secret and associated with a specific amount, currency, merchant, and branch.
+- **Braintree Client Token**: A short-lived token issued by the server to allow the mobile SDK to communicate with Braintree; scoped to the resolved merchant/branch account.
 - **Payment Nonce**: A single-use token generated client-side by the Braintree mobile SDK representing a payment method authorisation.
-- **Transaction**: A completed or declined payment record returned by the provider, carrying a unique identifier, amount, currency, and settlement status.
+- **Transaction**: A completed or declined payment record returned by the provider, carrying a unique identifier, amount, currency, settlement status, and references to both the merchant and the branch.
 - **Invoice Reference**: An optional identifier linking a payment transaction to a specific invoice in the system.
 
 ## Success Criteria *(mandatory)*
@@ -104,6 +115,14 @@ When a user pays an invoice, the payment can be linked to that invoice at the ti
 
 - Q: Should Stripe and Braintree payment capabilities be implemented in the same module or separate independent modules? → A: Separate, independently configurable modules — disabling one must not affect the other. (FR-009 added)
 - Q: What events and fields should the server log for payment operations, given PCI-safe audit requirements? → A: Log provider, transaction ID, amount, and currency per event; never log nonce, card details, or credentials. (FR-010 added)
+
+### Session 2026-04-20
+
+- Q: At which level should a payment be scoped — merchant, branch, or both? → A: Both — payment references both Merchant and MerchantBranch. (FR-011 added)
+- Q: Should each branch have its own provider credentials or share a central account? → A: Hybrid — Merchant holds default credentials; MerchantBranch may override with its own. (FR-012 added)
+- Q: Should payment endpoints require an explicit `branchId` or resolve it from context? → A: Both — `branchId` is optional; server resolves from product/session context if omitted. (FR-013 added)
+- Q: Should Merchant mirror MerchantApplication fields exactly (renamed) or be a simplified subset? → A: Full mirror — Merchant carries the same fields as MerchantApplication, renamed.
+- Q: When a product is referenced in a payment request, should the product price be the amount automatically or must the caller supply it? → A: Both — product price is the default; caller may supply an explicit override. (FR-014 added)
 
 ## Assumptions
 

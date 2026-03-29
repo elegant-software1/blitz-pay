@@ -3,7 +3,7 @@ package com.elegant.software.blitzpay.payments.push.internal
 import com.elegant.software.blitzpay.payments.push.config.ExpoPushProperties
 import com.elegant.software.blitzpay.payments.push.persistence.DeliveryOutcome
 import com.elegant.software.blitzpay.payments.push.persistence.PushDeliveryAttemptRepository
-import mu.KotlinLogging
+import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -12,13 +12,13 @@ import java.time.Duration
 import java.time.Instant
 
 @Component
-open class ExpoReceiptPoller(
+ class ExpoReceiptPoller(
     private val properties: ExpoPushProperties,
     private val expoWebClient: WebClient,
     private val attemptRepository: PushDeliveryAttemptRepository,
     private val deviceRegistrationService: DeviceRegistrationService,
 ) {
-    private val log = KotlinLogging.logger {}
+    private val log = LoggerFactory.getLogger(ExpoReceiptPoller::class.java)
 
     @Scheduled(fixedDelayString = "\${blitzpay.expo.receipt-poll-interval-ms:60000}")
     open fun poll() {
@@ -39,7 +39,7 @@ open class ExpoReceiptPoller(
                 .block(Duration.ofMillis(properties.requestTimeoutMs))
                 ?.data ?: emptyMap()
         } catch (ex: Exception) {
-            log.warn(ex) { "expo receipts fetch failed size=${ticketIds.size}" }
+            log.warn("expo receipts fetch failed size={}", ticketIds.size, ex)
             return
         }
 

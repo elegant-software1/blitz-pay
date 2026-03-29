@@ -5,7 +5,7 @@ import com.elegant.software.blitzpay.payments.push.api.PaymentStatusChanged
 import com.elegant.software.blitzpay.payments.push.api.PaymentStatusCode
 import com.elegant.software.blitzpay.payments.push.persistence.ProcessedWebhookEventEntity
 import com.elegant.software.blitzpay.payments.push.persistence.ProcessedWebhookEventRepository
-import mu.KotlinLogging
+import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component
@@ -19,28 +19,28 @@ class TlWebhookEventListener(
     private val paymentStatusService: PaymentStatusService,
     private val publisher: ApplicationEventPublisher,
 ) {
-    private val log = KotlinLogging.logger {}
+    private val log = LoggerFactory.getLogger(TlWebhookEventListener::class.java)
 
     @Transactional
     @EventListener
     fun on(envelope: TlWebhookEnvelope) {
         val eventId = envelope.event_id
         if (eventId.isNullOrBlank()) {
-            log.warn { "webhook without event_id; ignoring" }
+            log.warn("webhook without event_id; ignoring")
             return
         }
         val newStatus = mapStatus(envelope.type) ?: run {
-            log.debug { "webhook type=${envelope.type} does not map to a status; skipping" }
+            log.debug("webhook type={} does not map to a status; skipping", envelope.type)
             return
         }
         val paymentRequestId = envelope.metadata?.get("paymentRequestId")?.let { runCatching { UUID.fromString(it) }.getOrNull() }
         if (paymentRequestId == null) {
-            log.warn { "webhook missing paymentRequestId metadata event=$eventId" }
+            log.warn("webhook missing paymentRequestId metadata event={}", eventId)
             return
         }
 
         if (processedRepository.existsById(eventId)) {
-            log.info { "webhook duplicate event=$eventId; skipping" }
+            log.info("webhook duplicate event={}; skipping", eventId)
             return
         }
         processedRepository.save(ProcessedWebhookEventEntity(eventId = eventId))

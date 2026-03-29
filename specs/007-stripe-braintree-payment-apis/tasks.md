@@ -112,16 +112,101 @@
 
 ---
 
+## Phase 7: Merchant Domain Extension (Foundational for merchant/branch routing)
+
+**Purpose**: Introduce `MerchantBranch` entity, add payment credential columns to `MerchantApplication`, expose `MerchantCredentialResolver` as a `@NamedInterface` so payment modules can resolve per-branch credentials without violating Modulith boundaries.
+
+**⚠️ CRITICAL**: Phases 8, 9, 10 all depend on this phase being complete.
+
+- [x] T032 Add nullable Stripe credential columns (`stripeSecretKey: String?`, `stripePublishableKey: String?`) and nullable Braintree credential columns (`braintreeMerchantId: String?`, `braintreePublicKey: String?`, `braintreePrivateKey: String?`, `braintreeEnvironment: String?`) to `src/main/kotlin/com/elegant/software/blitzpay/merchant/domain/MerchantApplication.kt` (6 new `@Column` fields, all nullable)
+- [x] T033 [P] Create `src/main/kotlin/com/elegant/software/blitzpay/merchant/domain/MerchantBranch.kt` as a `@Entity @Table(name = "merchant_branches", schema = "blitzpay")` with fields: `id: UUID`, `merchantApplicationId: UUID` (FK, immutable), `name: String`, `active: Boolean = true`, nullable Stripe and Braintree credential columns (same 6 as T032), `createdAt: Instant`, `updatedAt: Instant`; add index `idx_merchant_branches_merchant_application_id`
+- [x] T034 [P] Add nullable `@Column(name = "merchant_branch_id") var merchantBranchId: UUID? = null` to `src/main/kotlin/com/elegant/software/blitzpay/merchant/domain/MerchantProduct.kt`
+- [x] T035 Create `src/main/kotlin/com/elegant/software/blitzpay/merchant/repository/MerchantBranchRepository.kt` as `JpaRepository<MerchantBranch, UUID>` with `findAllByMerchantApplicationIdAndActiveTrue(merchantApplicationId: UUID)` and `findByIdAndActiveTrue(id: UUID)` query methods
+- [x] T036 [P] Create `src/main/kotlin/com/elegant/software/blitzpay/merchant/api/MerchantCredentialModels.kt` with `data class StripeCredentials(val secretKey: String, val publishableKey: String)` and `data class BraintreeCredentials(val merchantId: String, val publicKey: String, val privateKey: String, val environment: String)`
+- [x] T037 [P] Create `src/main/kotlin/com/elegant/software/blitzpay/merchant/api/MerchantBranchModels.kt` with `data class CreateBranchRequest(val name: String, val stripeSecretKey: String? = null, ...)` and `data class BranchResponse(val id: UUID, val merchantId: UUID, val name: String, val active: Boolean, val hasStripeCredentials: Boolean, val hasBraintreeCredentials: Boolean, val createdAt: Instant, val updatedAt: Instant)` — credential keys never returned
+- [x] T038 Create `src/main/kotlin/com/elegant/software/blitzpay/merchant/api/MerchantCredentialResolver.kt` declaring interface with `resolveStripe(merchantId: UUID, branchId: UUID?): StripeCredentials?`, `resolveBraintree(merchantId: UUID, branchId: UUID?): BraintreeCredentials?`, `resolveBranch(merchantId: UUID, branchId: UUID?, productId: UUID?): UUID?`; update `src/main/kotlin/com/elegant/software/blitzpay/merchant/api/package-info.kt` to add `@NamedInterface("MerchantCredentialResolver")` annotation
+- [x] T039 Implement `src/main/kotlin/com/elegant/software/blitzpay/merchant/application/MerchantCredentialResolverImpl.kt`: branch credentials override merchant defaults; if both absent return null; `resolveBranch` returns explicit `branchId` → `product.merchantBranchId` → null
+- [x] T040 Create `src/main/kotlin/com/elegant/software/blitzpay/merchant/application/MerchantBranchService.kt` with `create(merchantId: UUID, request: CreateBranchRequest): BranchResponse`, `list(merchantId: UUID): List<BranchResponse>`, `get(merchantId: UUID, branchId: UUID): BranchResponse`; validate merchant exists (404 if not)
+- [x] T041 Create `src/main/kotlin/com/elegant/software/blitzpay/merchant/web/MerchantBranchController.kt` mapping `POST /v1/merchants/{merchantId}/branches` (201 BranchResponse), `GET /v1/merchants/{merchantId}/branches` (200 List<BranchResponse>); error: 404 when merchant not found, 400 when name blank
+
+**Checkpoint**: `./gradlew check` passes. `ApplicationModules.of(...).verify()` in `ModularityTest` still passes with `MerchantCredentialResolver` registered as `@NamedInterface`.
+
+---
+
+## Phase 8: US1 Update — Stripe with Credential Resolution & Provider Metadata
+
+**Goal**: `POST /v1/payments/stripe/create-intent` now accepts `merchantId` (required), optional `branchId`, optional `productId`. Stripe PaymentIntent carries `merchantId`, `branchId`, `productId` in its `metadata` field. Credentials are resolved per-request via `RequestOptions`; the global `Stripe.apiKey` assignment is removed.
+
+**Independent Test**: Request with `merchantId`, valid Stripe credentials configured on the merchant, returns PaymentIntent with metadata containing `merchantId`. Request without `merchantId` returns 400. No branch/product credentials → 503.
+
+- [ ] T042 Remove `@PostConstruct fun configureStripe()` from `src/main/kotlin/com/elegant/software/blitzpay/payments/stripe/config/StripeConfig.kt` so `Stripe.apiKey` is no longer set globally
+- [ ] T043 [US1] Update `src/main/kotlin/com/elegant/software/blitzpay/payments/stripe/internal/StripePaymentService.kt`: add `credentials: StripeCredentials`, `merchantId: UUID`, `branchId: UUID?`, `productId: UUID?` parameters to `createIntent()`; build `RequestOptions.builder().setApiKey(credentials.secretKey).build()`; call `PaymentIntent.create(params, requestOptions)`; add `.putMetadata("merchantId", ...)`, `.putMetadata("branchId", ...)`, `.putMetadata("productId", ...)` to `PaymentIntentCreateParams`; update log to include `merchantId`, `branchId`, `productId`
+- [ ] T044 [US1] Update `src/main/kotlin/com/elegant/software/blitzpay/payments/stripe/internal/StripePaymentController.kt`: extend `CreateIntentRequest` with `val merchantId: UUID? = null`, `val branchId: UUID? = null`, `val productId: UUID? = null`; inject `MerchantCredentialResolver`; implement resolution chain: validate `merchantId` → resolve branch (400 if null) → load product price if `productId` present → resolve `StripeCredentials` (503 if null) → call updated service; log WARN if explicit `amount` differs from `product.unitPrice`
+- [ ] T045 [P] [US1] Update `src/test/kotlin/com/elegant/software/blitzpay/payments/stripe/StripePaymentServiceTest.kt`: add test cases verifying `RequestOptions` carries resolved secret key; verify metadata map contains `merchantId`, `branchId`, `productId` on the created `PaymentIntentCreateParams`
+- [ ] T046 [P] [US1] Update `src/contractTest/kotlin/com/elegant/software/blitzpay/payments/stripe/StripePaymentControllerContractTest.kt`: add `merchantId` to request bodies; mock `MerchantCredentialResolver` returning valid credentials; add 400 test for missing `merchantId`; add 400 test for unresolvable branch; add 503 test for null credentials
+
+**Checkpoint**: `./gradlew check` passes. Stripe smoke test with `merchantId` in the request body returns a PaymentIntent.
+
+---
+
+## Phase 9: US2/US3 Update — Braintree with Credential Resolution & Provider Metadata
+
+**Goal**: Both Braintree endpoints accept `merchantId` (required), optional `branchId`, optional `productId`. Transactions carry `orderId` (set to `productId ?: invoiceId`) and log `merchantId`/`branchId` for traceability. Credentials resolved per-request via a cached `BraintreeGatewayFactory`.
+
+**Independent Test**: `POST /v1/payments/braintree/checkout` with `merchantId`, sandbox nonce, and `productId` returns success with `merchantId` and `branchId` in the response body. `orderId` on the Braintree transaction equals the supplied `productId`.
+
+- [ ] T047 Remove the `@Bean @ConditionalOnProperty` `BraintreeGateway` bean from `src/main/kotlin/com/elegant/software/blitzpay/payments/braintree/config/BraintreeConfig.kt`
+- [ ] T048 [P] [US2] Create `src/main/kotlin/com/elegant/software/blitzpay/payments/braintree/internal/BraintreeGatewayFactory.kt` with `ConcurrentHashMap<String, BraintreeGateway>` cache keyed on `"${credentials.merchantId}:${credentials.publicKey}:${credentials.environment}"`; `fun get(credentials: BraintreeCredentials): BraintreeGateway`
+- [ ] T049 [US2] Update `src/main/kotlin/com/elegant/software/blitzpay/payments/braintree/internal/BraintreePaymentService.kt`: replace `Optional<BraintreeGateway>` with `BraintreeGatewayFactory`; add `credentials: BraintreeCredentials`, `merchantId: UUID`, `branchId: UUID?`, `productId: UUID?` params to `generateClientToken()` and `checkout()`; set `TransactionRequest.orderId(productId?.toString() ?: invoiceId ?: "")`; add `merchantId`/`branchId` to `BraintreeCheckoutResult.Success`; update log lines
+- [ ] T050 [US2] Update `src/main/kotlin/com/elegant/software/blitzpay/payments/braintree/internal/BraintreePaymentController.kt`: extend `ClientTokenRequest` with `merchantId: UUID?`, `branchId: UUID?`; extend `CheckoutRequest` with `merchantId: UUID?`, `branchId: UUID?`, `productId: UUID?`; inject `MerchantCredentialResolver`; implement same resolution chain as Stripe controller (T044); extend `CheckoutSuccessResponse` with `merchantId: UUID`, `branchId: UUID?`
+- [ ] T051 [P] [US2] Update `src/test/kotlin/com/elegant/software/blitzpay/payments/braintree/BraintreePaymentServiceTest.kt`: add tests verifying factory is called with resolved credentials; verify `orderId` is set to `productId` when present; verify `BraintreeCheckoutResult.Success` carries `merchantId`/`branchId`
+- [ ] T052 [P] [US2] Create `src/test/kotlin/com/elegant/software/blitzpay/payments/braintree/BraintreeGatewayFactoryTest.kt`: same fingerprint → same cached `BraintreeGateway` instance; different fingerprint → different instance
+- [ ] T053 [P] [US2] Update `src/contractTest/kotlin/com/elegant/software/blitzpay/payments/braintree/BraintreePaymentControllerContractTest.kt`: add `merchantId` to all request bodies; mock `MerchantCredentialResolver`; add 400 test for missing `merchantId`; add 503 test for null credentials; verify success response contains `merchantId`/`branchId`
+
+**Checkpoint**: `./gradlew check` passes. Braintree sandbox smoke test with `merchantId` succeeds and response includes `merchantId`.
+
+---
+
+## Phase 10: TrueLayer Metadata Extension
+
+**Goal**: `PaymentRequested` gains optional `merchantId`, `branchId`, `productId` fields. `PaymentService` includes non-null values in the `.metadata()` map already sent to TrueLayer on every payment creation.
+
+**Independent Test**: A `PaymentRequested` event with `merchantId` set produces a TrueLayer `CreatePaymentRequest` whose metadata map contains `"merchantId"`. Events without these fields produce the same metadata as today (no regression).
+
+- [ ] T054 [P] Add `val merchantId: UUID? = null`, `val branchId: UUID? = null`, `val productId: UUID? = null` optional fields to `PaymentRequested` in `src/main/kotlin/com/elegant/software/blitzpay/payments/truelayer/api/PaymentGateway.kt` (default null preserves backward compat with all existing callers)
+- [ ] T055 Update `src/main/kotlin/com/elegant/software/blitzpay/payments/truelayer/outbound/PaymentService.kt`: replace the existing `mapOf(...)` in `.metadata(...)` with `buildMap { put("paymentRequestId", ...); put("orderId", ...); paymentRequest.merchantId?.let { put("merchantId", it.toString()) }; paymentRequest.branchId?.let { put("branchId", it.toString()) }; paymentRequest.productId?.let { put("productId", it.toString()) } }`; update the `log.info` line to include `merchantId`, `branchId`, `productId`
+
+**Checkpoint**: `./gradlew check` passes. Existing `PaymentRequested` usages compile unchanged (all new fields have defaults).
+
+---
+
+## Phase 11: Testing & Final Verification
+
+- [ ] T056 [P] Create `src/test/kotlin/com/elegant/software/blitzpay/merchant/application/MerchantCredentialResolverImplTest.kt`: branch credentials override merchant defaults; merchant defaults used when branch has no credentials; null returned when both absent; `resolveBranch` returns explicit `branchId`; `resolveBranch` returns `product.merchantBranchId` when `productId` supplied; `resolveBranch` returns null when neither provided
+- [ ] T057 [P] Create `src/contractTest/kotlin/com/elegant/software/blitzpay/merchant/MerchantBranchControllerContractTest.kt`: `POST /v1/merchants/{id}/branches` 201 with valid request; 400 with blank name; 404 with unknown `merchantId`; `GET /v1/merchants/{id}/branches` 200 list; secret keys not present in any response field
+- [ ] T058 [P] Add 400/503 edge case contract tests to `src/contractTest/kotlin/com/elegant/software/blitzpay/payments/stripe/StripePaymentControllerContractTest.kt` and `BraintreePaymentControllerContractTest.kt` for: branch unresolvable (400), no credentials at branch or merchant level (503)
+- [ ] T059 Run `./gradlew test --tests "*.ModularityTest"` and `./gradlew test --tests "*.MerchantModularityTest"` to confirm `ApplicationModules.verify()` passes with `MerchantCredentialResolver` as `@NamedInterface` consumed by `payments.stripe` and `payments.braintree`
+- [ ] T060 Update `specs/007-stripe-braintree-payment-apis/quickstart.md`: add `merchantId`/`branchId` to all three payment endpoint smoke test examples; add a `POST /v1/merchants/{id}/branches` example showing branch creation with Stripe/Braintree credential override
+
+**Checkpoint**: `./gradlew check` fully green. All smoke tests in updated quickstart.md succeed against sandbox.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
 
-- **Phase 1 (Setup)**: No dependencies — start immediately
-- **Phase 2 (Foundational)**: Requires Phase 1 — BLOCKS all user stories
-- **Phase 3 (US1 Stripe)**: Requires Phase 2 — independent of US2/US3
-- **Phase 4 (US2 Braintree)**: Requires Phase 2 — independent of US1/US3
-- **Phase 5 (US3 Invoice)**: Requires Phase 4 (extends Braintree checkout)
-- **Phase 6 (Polish)**: Requires all desired stories complete
+- **Phase 1 (Setup)**: No dependencies — start immediately ✅ done
+- **Phase 2 (Foundational)**: Requires Phase 1 ✅ done
+- **Phase 3 (US1 Stripe basic)**: Requires Phase 2 ✅ done
+- **Phase 4 (US2 Braintree basic)**: Requires Phase 2 ✅ done
+- **Phase 5 (US3 Invoice basic)**: Requires Phase 4 ✅ done
+- **Phase 6 (Polish basic)**: ✅ done (T031 outstanding)
+- **Phase 7 (Merchant Domain)**: No new setup deps — BLOCKS Phases 8, 9, 10
+- **Phase 8 (US1 Stripe + credentials/metadata)**: Requires Phase 7
+- **Phase 9 (US2/US3 Braintree + credentials/metadata)**: Requires Phase 7
+- **Phase 10 (TrueLayer metadata)**: Independent of Phases 8/9 — requires Phase 7 only for `PaymentRequested` fields (or can run in parallel)
+- **Phase 11 (Testing & verification)**: Requires Phases 8, 9, 10
 
 ### User Story Dependencies
 

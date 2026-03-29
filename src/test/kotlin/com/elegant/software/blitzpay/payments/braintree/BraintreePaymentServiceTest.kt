@@ -1,46 +1,46 @@
 package com.elegant.software.blitzpay.payments.braintree
 
+import com.elegant.software.blitzpay.merchant.api.BraintreeCredentials
+import com.elegant.software.blitzpay.payments.braintree.internal.BraintreeGatewayFactory
 import com.elegant.software.blitzpay.payments.braintree.internal.BraintreePaymentService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.mock
 import reactor.test.StepVerifier
 import java.math.BigDecimal
 import java.util.Locale
-import java.util.Optional
+import java.util.UUID
 
 class BraintreePaymentServiceTest {
 
-    private val serviceUnconfigured = BraintreePaymentService(Optional.empty())
-
-    @Test
-    fun `isConfigured returns false when gateway absent`() {
-        assert(!serviceUnconfigured.isConfigured())
-    }
-
-    @Test
-    fun `generateClientToken fails when unconfigured`() {
-        StepVerifier.create(serviceUnconfigured.generateClientToken())
-            .expectErrorMatches { it is IllegalStateException }
-            .verify()
-    }
+    private val gatewayFactory: BraintreeGatewayFactory = mock()
+    private val service = BraintreePaymentService(gatewayFactory)
+    private val merchantId: UUID = UUID.randomUUID()
+    private val branchId: UUID = UUID.randomUUID()
+    private val credentials = BraintreeCredentials(
+        merchantId = "test-merchant",
+        publicKey = "pub",
+        privateKey = "priv",
+        environment = "sandbox",
+    )
 
     @Test
     fun `checkout rejects blank nonce`() {
-        StepVerifier.create(serviceUnconfigured.checkout("", 12.50, "EUR"))
+        StepVerifier.create(service.checkout("", 12.50, "EUR", credentials, merchantId, branchId))
             .expectErrorMatches { it is IllegalArgumentException && it.message!!.contains("nonce") }
             .verify()
     }
 
     @Test
     fun `checkout rejects zero amount`() {
-        StepVerifier.create(serviceUnconfigured.checkout("fake-nonce", 0.0, "EUR"))
+        StepVerifier.create(service.checkout("fake-nonce", 0.0, "EUR", credentials, merchantId, branchId))
             .expectErrorMatches { it is IllegalArgumentException && it.message!!.contains("positive") }
             .verify()
     }
 
     @Test
     fun `checkout rejects negative amount`() {
-        StepVerifier.create(serviceUnconfigured.checkout("fake-nonce", -5.0, "EUR"))
+        StepVerifier.create(service.checkout("fake-nonce", -5.0, "EUR", credentials, merchantId, branchId))
             .expectErrorMatches { it is IllegalArgumentException && it.message!!.contains("positive") }
             .verify()
     }
@@ -50,7 +50,6 @@ class BraintreePaymentServiceTest {
         val originalLocale = Locale.getDefault()
         try {
             Locale.setDefault(Locale.GERMANY)
-            // Use a local test to verify formatting logic used in service
             val amount = 89.0
             val formattedAmount = "%.2f".format(Locale.US, amount)
             assertEquals("89.00", formattedAmount)

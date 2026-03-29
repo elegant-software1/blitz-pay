@@ -1,0 +1,125 @@
+{
+  "contract": "Merchant Branch Management",
+  "version": "v1",
+  "endpoints": [
+    {
+      "id": "create-branch",
+      "method": "POST",
+      "path": "/v1/merchants/{merchantId}/branches",
+      "description": "Creates a new MerchantBranch under the given merchant. Branch may carry its own Stripe/Braintree credentials that override the merchant-level defaults.",
+      "request": {
+        "contentType": "application/json",
+        "pathParams": {
+          "merchantId": {
+            "type": "string",
+            "format": "uuid",
+            "required": true,
+            "description": "ID of the owning merchant (MerchantApplication.id)"
+          }
+        },
+        "body": {
+          "name": {
+            "type": "string",
+            "required": true,
+            "description": "Human-readable branch name.",
+            "example": "Downtown Branch"
+          },
+          "stripeSecretKey": {
+            "type": "string",
+            "required": false,
+            "description": "Branch-level Stripe secret key override. Never returned in responses."
+          },
+          "stripePublishableKey": {
+            "type": "string",
+            "required": false,
+            "description": "Branch-level Stripe publishable key override."
+          },
+          "braintreeMerchantId": {
+            "type": "string",
+            "required": false,
+            "description": "Branch-level Braintree merchant ID override."
+          },
+          "braintreePublicKey": {
+            "type": "string",
+            "required": false,
+            "description": "Branch-level Braintree public key override."
+          },
+          "braintreePrivateKey": {
+            "type": "string",
+            "required": false,
+            "description": "Branch-level Braintree private key override. Never returned in responses."
+          },
+          "braintreeEnvironment": {
+            "type": "string",
+            "required": false,
+            "enum": ["sandbox", "production"],
+            "description": "Defaults to 'sandbox' if not specified."
+          }
+        }
+      },
+      "responses": {
+        "201": {
+          "description": "Branch created successfully",
+          "contentType": "application/json",
+          "body": {
+            "id": { "type": "string", "format": "uuid" },
+            "merchantId": { "type": "string", "format": "uuid" },
+            "name": { "type": "string" },
+            "active": { "type": "boolean" },
+            "hasStripeCredentials": {
+              "type": "boolean",
+              "description": "True if branch-level Stripe credentials are configured. Keys are never returned."
+            },
+            "hasBraintreeCredentials": {
+              "type": "boolean",
+              "description": "True if branch-level Braintree credentials are configured. Keys are never returned."
+            },
+            "createdAt": { "type": "string", "format": "date-time" },
+            "updatedAt": { "type": "string", "format": "date-time" }
+          }
+        },
+        "400": {
+          "description": "Invalid request — name missing or blank",
+          "body": { "error": { "type": "string" } }
+        },
+        "404": {
+          "description": "Merchant not found",
+          "body": { "error": { "type": "string", "example": "Merchant not found" } }
+        }
+      },
+      "security": {
+        "note": "Secret keys and private keys are write-only — they are stored but never returned in any response."
+      }
+    },
+    {
+      "id": "list-branches",
+      "method": "GET",
+      "path": "/v1/merchants/{merchantId}/branches",
+      "description": "Lists all active branches for the given merchant.",
+      "request": {
+        "pathParams": {
+          "merchantId": {
+            "type": "string",
+            "format": "uuid",
+            "required": true
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "List of active branches",
+          "body": {
+            "branches": {
+              "type": "array",
+              "items": "BranchResponse (same shape as CREATE 201 response)"
+            }
+          }
+        },
+        "404": {
+          "description": "Merchant not found",
+          "body": { "error": { "type": "string" } }
+        }
+      }
+    }
+  ]
+}

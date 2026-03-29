@@ -7,19 +7,20 @@ import java.util.UUID
 data class CreateProductRequest(
     val name: String,
     val unitPrice: BigDecimal,
-    val imageUrl: String? = null
+    val description: String? = null
 )
 
 data class UpdateProductRequest(
     val name: String,
     val unitPrice: BigDecimal,
-    val imageUrl: String? = null
+    val description: String? = null
 )
 
 data class ProductResponse(
     val productId: UUID,
     val merchantId: UUID,
     val name: String,
+    val description: String?,
     val unitPrice: BigDecimal,
     val imageUrl: String?,
     val active: Boolean,
