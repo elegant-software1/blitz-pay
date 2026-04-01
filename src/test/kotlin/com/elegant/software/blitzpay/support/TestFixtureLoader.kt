@@ -6,9 +6,11 @@ import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.elegant.software.blitzpay.betterprice.agent.api.PriceComparisonChatRequest
 import com.elegant.software.blitzpay.invoice.api.BankAccountData
 import com.elegant.software.blitzpay.invoice.api.InvoiceData
 import com.elegant.software.blitzpay.invoice.api.InvoiceLineItem
+import com.elegant.software.blitzpay.betterprice.pricecomparison.provider.ProviderProductOffer
 import java.math.BigDecimal
 
 object TestFixtureLoader {
@@ -60,6 +62,41 @@ object TestFixtureLoader {
         )
     )
 
+    fun priceComparisonScenario(name: String): PriceComparisonFixtureScenario {
+        val path = "testdata/pricecomparison/$name.json"
+        val resource = requireNotNull(this::class.java.classLoader.getResourceAsStream(path)) {
+            "Missing fixture file: $path"
+        }
+        return resource.use { objectMapper.readValue(it) }
+    }
+
+    fun betterPriceScenario(): PriceComparisonFixtureScenario = priceComparisonScenario("better-price")
+
+    fun noBetterPriceScenario(): PriceComparisonFixtureScenario = priceComparisonScenario("no-better-price")
+
+    fun comparisonUnavailableScenario(): PriceComparisonFixtureScenario = priceComparisonScenario("comparison-unavailable")
+
+    fun monitoringSlowdownScenario(): PriceComparisonFixtureScenario = priceComparisonScenario("monitoring-slowdown")
+
+    fun monitoringFailureScenario(): PriceComparisonFixtureScenario = priceComparisonScenario("monitoring-failure")
+
+    fun priceComparisonRequestJson(name: String): String =
+        objectMapper.writeValueAsString(priceComparisonScenario(name).inputData)
+
+    fun marketSearchFixtureText(name: String): String {
+        val path = "testdata/marketsearch/$name"
+        val resource = requireNotNull(this::class.java.classLoader.getResourceAsStream(path)) {
+            "Missing fixture file: $path"
+        }
+        return resource.bufferedReader().use { it.readText() }
+    }
+
+    fun deepSearchDiscoverySonyFixture(): String = marketSearchFixtureText("deepsearch-discovery-sony.json")
+
+    fun deepSearchDiscoveryEmptyFixture(): String = marketSearchFixtureText("deepsearch-discovery-empty.json")
+
+    fun deepSearchProviderFailureFixture(): String = marketSearchFixtureText("deepsearch-provider-failure.json")
+
     private const val FIXTURE_PATH = "testdata/invoice/canonical-invoice.json"
 }
 
@@ -89,4 +126,23 @@ data class InvoiceExpectations(
     val singleLineItemQuantity: String,
     val singleLineItemUnitPrice: String,
     val singleLineItemVatPercent: String,
+)
+
+data class PriceComparisonFixtureScenario(
+    val scenarioId: String,
+    val description: String,
+    val domain: String,
+    val tags: List<String>,
+    val inputData: PriceComparisonChatRequest,
+    val providerOffers: List<ProviderProductOffer>,
+    val expectations: PriceComparisonExpectations,
+)
+
+data class PriceComparisonExpectations(
+    val status: String,
+    val bestSellerName: String? = null,
+    val bestOfferPrice: BigDecimal? = null,
+    val savingsAmount: BigDecimal,
+    val savingsPercentage: BigDecimal? = null,
+    val explanationCode: String
 )

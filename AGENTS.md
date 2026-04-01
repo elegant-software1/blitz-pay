@@ -33,6 +33,16 @@ This file defines collaboration and contribution conventions for agents working 
 ## Active Technologies
 - Kotlin 2.3.20 on Java 25 + Spring Boot 4.0.4, Spring WebFlux Test, Spring Modulith, Jackson Kotlin module, Mockito Kotlin, JUnit 5, Testcontainers (004-fixture-test-policy)
 - Test resource files under `src/test/resources/` and repository documentation in Markdown (004-fixture-test-policy)
+- Kotlin 2.3.20 on Java 25 + Spring Boot 4.0.4, Spring WebFlux, Spring Modulith, Jackson Kotlin module, JUnit 5, Mockito Kotlin, existing A2A transport models already present in the repository (006-product-price-savings-agent)
+- None for feature data; request and comparison results remain in-memory only for the lifetime of a single reques (006-product-price-savings-agent)
+- Kotlin 2.3.20 on Java 25 + Spring Boot 4.0.4, Spring WebFlux, Spring Modulith, Jackson Kotlin module, springdoc OpenAPI, JUnit 5, Mockito Kotlin, existing A2A transport models already present in the repository (006-product-price-savings-agent)
+- None for feature data or monitoring history; comparison results and monitoring details are produced only within the lifetime of a single reques (006-product-price-savings-agent)
+- Kotlin 2.3.20 on Java 25 + Spring Boot 4.0.4, Spring WebFlux `WebClient`, Spring Modulith, Jackson Kotlin module, springdoc OpenAPI, JUnit 5, Mockito Kotlin, Jsoup for HTML parsing, Brave Search API for live discovery (006-product-price-savings-agent)
+- None; request handling remains stateless and no search or comparison history is persisted (006-product-price-savings-agent)
+- Kotlin 2.3.20 on Java 25 + Spring Boot 4.0.4, Spring WebFlux, Spring Modulith, Jackson Kotlin module, Springdoc OpenAPI, Jsoup, Mockito Kotlin, JUnit 5 (006-product-price-savings-agent)
+- N/A for this feature; request handling remains stateless with no persistence (006-product-price-savings-agent)
+- Kotlin 2.3.20 on Java 25 + Spring Boot 4.0.4, Spring WebFlux, Spring Modulith, Jackson Kotlin module, springdoc OpenAPI, Jsoup, Browserbase-backed DeepSearch integration, KOOG agent runtime (`ai.koog:koog-agents`) (006-product-price-savings-agent)
+- N/A; request handling remains stateless and in-memory only for the lifetime of a reques (006-product-price-savings-agent)
 
 ## Recent Changes
 - 004-fixture-test-policy: Added Kotlin 2.3.20 on Java 25 + Spring Boot 4.0.4, Spring WebFlux Test, Spring Modulith, Jackson Kotlin module, Mockito Kotlin, JUnit 5, Testcontainers

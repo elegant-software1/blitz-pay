@@ -1,0 +1,94 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: blitzpay
+  description: BlitzPay payment service
+spec:
+  type: service
+  lifecycle: experimental
+  owner: team-payments
+  providesApis:
+    - blitzpay-invoice-api
+    - blitzpay-qrpay-api
+    - blitzpay-truelayer-api
+    - blitzpay-support-api
+    - blitzpay-general-api
+    - blitzpay-actuator-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: blitzpay-invoice-api
+  description: BlitzPay invoice API
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: team-payments
+  system: payments
+  definition:
+    $text: https://blitzpay.example.com/api-docs/Invoice
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: blitzpay-qrpay-api
+  description: BlitzPay QRPay API
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: team-payments
+  system: payments
+  definition:
+    $text: https://blitzpay.example.com/api-docs/QRPay
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: blitzpay-truelayer-api
+  description: BlitzPay TrueLayer API
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: team-payments
+  system: payments
+  definition:
+    $text: https://blitzpay.example.com/api-docs/TrueLayer
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: blitzpay-support-api
+  description: BlitzPay support API
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: team-payments
+  system: payments
+  definition:
+    $text: https://blitzpay.example.com/api-docs/Support
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: blitzpay-general-api
+  description: BlitzPay general API
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: team-payments
+  system: payments
+  definition:
+    $text: https://blitzpay.example.com/api-docs/General
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: blitzpay-actuator-api
+  description: BlitzPay actuator API
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: team-payments
+  system: payments
+  definition:
+    $text: https://blitzpay.example.com/api-docs/Actuator

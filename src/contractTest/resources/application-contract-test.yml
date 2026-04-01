@@ -7,6 +7,17 @@ spring:
       - org.springframework.modulith.events.jpa.JpaEventPublicationAutoConfiguration
       - org.springframework.modulith.events.config.EventPublicationAutoConfiguration
 
+market-search:
+  enabled: true
+  provider: fixture
+  maxHits: 5
+  maxPagesToFetch: 3
+  requestTimeout: PT3S
+  koog:
+    enabled: true
+  a2a:
+    path: /a2a/market-search
+
 truelayer:
   apiBase: https://api.truelayer-sandbox.test
   accessToken: contract-test-access-token

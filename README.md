@@ -1,14 +1,14 @@
 # BlitzPay
 
 <!-- Build & Test -->
-[![CI](https://github.com/medimohammadise/blitz-pay/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/medimohammadise/blitz-pay/actions/workflows/ci.yml)
-[![CD](https://github.com/medimohammadise/blitz-pay/actions/workflows/cd.yml/badge.svg?branch=main)](https://github.com/medimohammadise/blitz-pay/actions/workflows/cd.yml)
-[![Deploy](https://github.com/medimohammadise/blitz-pay/actions/workflows/deploy.yml/badge.svg?event=workflow_dispatch)](https://github.com/medimohammadise/blitz-pay/actions/workflows/deploy.yml)
+[![CI](https://github.com/elegant-software/blitz-pay/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elegant-software/blitz-pay/actions/workflows/ci.yml)
+[![CD](https://github.com/elegant-software/blitz-pay/actions/workflows/cd.yml/badge.svg?branch=main)](https://github.com/elegant-software/blitz-pay/actions/workflows/cd.yml)
+[![Deploy](https://github.com/elegant-software/blitz-pay/actions/workflows/deploy.yml/badge.svg?event=workflow_dispatch)](https://github.com/elegant-software/blitz-pay/actions/workflows/deploy.yml)
 
 <!-- PR Automation & Release -->
-[![Auto-Label Pull Requests](https://github.com/medimohammadise/blitz-pay/actions/workflows/auto-label.yml/badge.svg?event=pull_request)](https://github.com/medimohammadise/blitz-pay/actions/workflows/auto-label.yml)
-[![Release Notes](https://github.com/medimohammadise/blitz-pay/actions/workflows/release-notes.yml/badge.svg?event=pull_request)](https://github.com/medimohammadise/blitz-pay/actions/workflows/release-notes.yml)
-[![Latest Release](https://img.shields.io/github/v/release/medimohammadise/blitz-pay)](https://github.com/medimohammadise/blitz-pay/releases)
+[![Auto-Label Pull Requests](https://github.com/elegant-software/blitz-pay/actions/workflows/auto-label.yml/badge.svg?event=pull_request)](https://github.com/elegant-software/blitz-pay/actions/workflows/auto-label.yml)
+[![Release Notes](https://github.com/elegant-software/blitz-pay/actions/workflows/release-notes.yml/badge.svg?event=pull_request)](https://github.com/elegant-software/blitz-pay/actions/workflows/release-notes.yml)
+[![Latest Release](https://img.shields.io/github/v/release/elegant-software/blitz-pay)](https://github.com/elegant-software/blitz-pay/releases)
 
 <!-- Stack -->
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
@@ -41,6 +41,13 @@ Follow the steps on that page to create and manage your keys; then place your pr
 ## Environment variables
 
 The application expects the following environment variables to be set before running. Use the placeholders below and replace them with your actual credentials and key path.
+
+Database startup defaults:
+- `SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/blitzpay_db`
+- `SPRING_DATASOURCE_USERNAME=postgres`
+- `SPRING_DATASOURCE_PASSWORD=postgres`
+
+When startup fails, the application prints a focused diagnostics block with failure category and remediation hints (for example: configuration binding, port conflicts, bean wiring, database connectivity, and unknown failures).
 
 - TRUELAYER_CLIENT_ID: TrueLayer client identifier
   - Example: `<YOUR_CLIENT_ID>`
@@ -98,4 +105,3 @@ Security and repo hygiene notes
 ```
 
 - Prefer storing secrets in a secure vault or CI secret manager for production deployments.
-

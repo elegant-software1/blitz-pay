@@ -2,7 +2,7 @@ spring:
   application:
     name: quickpay
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/quickpay_db}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/blitzpay_db}
     driver-class-name: org.postgresql.Driver
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
@@ -51,6 +51,8 @@ springdoc:
         url: /api-docs/TrueLayer
       - name: Support
         url: /api-docs/Support
+      - name: Better Price Agent
+        url: /api-docs/Better%20Price%20Agent
       - name: General
         url: /api-docs/General
       - name: Actuator
@@ -62,6 +64,40 @@ api:
     qrpay: 1
     truelayer: 1
     payments: 1
+
+market-search:
+  enabled: ${MARKET_SEARCH_ENABLED:true}
+  provider: ${MARKET_SEARCH_PROVIDER:deepsearch}
+  maxHits: ${MARKET_SEARCH_MAX_HITS:5}
+  maxPagesToFetch: ${MARKET_SEARCH_MAX_PAGES:3}
+  requestTimeout: ${MARKET_SEARCH_TIMEOUT:PT3S}
+  brave:
+    apiKey: ${BRAVE_SEARCH_API_KEY:}
+    baseUrl: ${BRAVE_SEARCH_BASE_URL:https://api.search.brave.com}
+    searchPath: ${BRAVE_SEARCH_PATH:/res/v1/web/search}
+  deepsearch:
+    apiKey: ${DEEPSEARCH_API_KEY:}
+    baseUrl: ${DEEPSEARCH_BASE_URL:https://api.browserbase.com}
+    searchPath: ${DEEPSEARCH_PATH:/v1/search}
+    fetchPath: ${DEEPSEARCH_FETCH_PATH:/v1/fetch}
+    allowRedirects: ${DEEPSEARCH_ALLOW_REDIRECTS:true}
+    allowInsecureSsl: ${DEEPSEARCH_ALLOW_INSECURE_SSL:false}
+    proxies: ${DEEPSEARCH_PROXIES:false}
+  model: ${MARKET_SEARCH_MODEL:gpt-4.1-mini}
+  baseUrl: ${MARKET_SEARCH_BASE_URL:http://localhost:8080}
+  koog:
+    enabled: ${MARKET_SEARCH_KOOG_ENABLED:true}
+    deterministicFallback: ${MARKET_SEARCH_KOOG_DETERMINISTIC_FALLBACK:true}
+    openAiApiKey: ${OPENAI_API_KEY:}
+    systemPromptVersion: ${MARKET_SEARCH_KOOG_PROMPT_VERSION:product-price-research-v1}
+  a2a:
+    port: ${MARKET_SEARCH_A2A_PORT:8099}
+    path: ${MARKET_SEARCH_A2A_PATH:/a2a/market-search}
+  card:
+    id: ${MARKET_SEARCH_CARD_ID:market-search-agent}
+    name: ${MARKET_SEARCH_CARD_NAME:Market Search Agent}
+    description: ${MARKET_SEARCH_CARD_DESCRIPTION:A2A KOOG market-search agent that uses configurable live providers and returns structured price-comparison and monitoring results}
+    version: ${MARKET_SEARCH_CARD_VERSION:1.0.0}
 
 truelayer:
   apiBase: ${TRUELAYER_API_BASE:https://api.truelayer-sandbox.com}

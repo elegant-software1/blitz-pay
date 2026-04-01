@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "provider_lookup_failed",
+    "message": "Upstream search provider timed out"
+  }
+}
