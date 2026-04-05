@@ -27,6 +27,7 @@ jobs:
       APP_NAME: ${{ vars.APP_NAME }}
       HELM_CHART: ./helm/${{ vars.APP_NAME }}
       ENV_SUFFIX: ${{ inputs.environment == 'production' && 'prod' || 'staging' }}
+      OTLP_LOGS_ENDPOINT: ${{ vars.OTLP_LOGS_ENDPOINT }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,14 +36,22 @@ jobs:
 
       - name: Deploy to ${{ inputs.environment }}
         run: |
-          helm upgrade --install $APP_NAME $HELM_CHART \
-            --namespace blitzpay-$ENV_SUFFIX \
-            --create-namespace \
-            --values $HELM_CHART/values.yaml \
-            --values $HELM_CHART/values-$ENV_SUFFIX.yaml \
-            --set image.tag=${{ inputs.image-tag }} \
-            --wait \
+          HELM_ARGS=(
+            --namespace blitzpay-$ENV_SUFFIX
+            --create-namespace
+            --values $HELM_CHART/values.yaml
+            --values $HELM_CHART/values-$ENV_SUFFIX.yaml
+            --set image.tag=${{ inputs.image-tag }}
+            --wait
             --timeout 5m
+          )
+
+          # Allow environment-specific OTLP endpoint from GitHub Environment Variables.
+          if [ -n "${OTLP_LOGS_ENDPOINT:-}" ]; then
+            HELM_ARGS+=(--set-string config.otlpLogsEndpoint="$OTLP_LOGS_ENDPOINT")
+          fi
+
+          helm upgrade --install $APP_NAME $HELM_CHART "${HELM_ARGS[@]}"
 
       - name: Verify rollout
         run: |

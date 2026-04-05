@@ -166,6 +166,7 @@ Cleanup workflows are intentionally not badged — they add noise without contri
 | `APP_NAME` | Variable | `cd.yml`, `deploy.yml` | Application name — must match `rootProject.name` in `settings.gradle.kts` |
 | `JAVA_VERSION` | Variable | `ci.yml`, `cd.yml` | JDK version for Gradle builds |
 | `CONTAINER_REGISTRY` | Variable | `cd.yml` | Registry host + org, e.g. `ghcr.io/elegant-software` |
+| `OTLP_LOGS_ENDPOINT` | Variable (Environment-level) | `deploy.yml` | OTLP logs endpoint injected into Helm ConfigMap as `OTLP_LOGS_ENDPOINT` |
 | `QODANA_TOKEN` | Secret | `ci.yml` | Qodana Cloud token for code quality reports |
 | `DTRACK_URL` | Secret | `ci.yml` | Dependency-Track base URL (optional) |
 | `DTRACK_API_KEY` | Secret | `ci.yml` | Dependency-Track API key (optional) |
