@@ -75,6 +75,7 @@ privateKey:
 # ---------------------------------------------------------------------------
 config:
   springProfilesActive: prod
+  otlpLogsEndpoint: http://localhost:3100/otlp
   truelayerApiBase: https://api.truelayer-sandbox.com
   truelayerEnv: sandbox
   truelayerHttpLogs: "false"
