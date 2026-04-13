@@ -3,8 +3,10 @@ package com.elegant.software.blitzpay.invoice.internal
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import com.elegant.software.blitzpay.payments.QuickpayApplication
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
+import org.springframework.test.context.ContextConfiguration
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.containers.PostgreSQLContainer
@@ -12,8 +14,10 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.math.BigDecimal
 import java.time.Instant
+import java.util.function.Consumer
 
 @DataJpaTest
+@ContextConfiguration(classes = [QuickpayApplication::class])
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers
 class InvoiceRepositoryTest {
@@ -44,12 +48,12 @@ class InvoiceRepositoryTest {
         assertThat(loaded.createdAt).isEqualTo(Instant.parse("2026-04-12T10:15:30Z"))
         assertThat(loaded.amount).isEqualByComparingTo("125.50")
         assertThat(loaded.paymentStatus).isEqualTo(PaymentStatus.PENDING)
-        assertThat(loaded.recipients).singleElement().satisfies {
+        assertThat(loaded.recipients).singleElement().satisfies(Consumer {
             assertThat(it.recipientType).isEqualTo(RecipientType.PERSON)
             assertThat(it.displayName).isEqualTo("Alex Example")
             assertThat(it.email).isEqualTo("alex@example.com")
             assertThat(it.customerReference).isEqualTo("CUST-1001")
-        }
+        })
     }
 
     @Test
@@ -73,13 +77,13 @@ class InvoiceRepositoryTest {
         val loaded = requireNotNull(invoiceRepository.findById(saved.id).orElse(null))
 
         assertThat(loaded.paymentStatus).isEqualTo(PaymentStatus.PAID)
-        assertThat(loaded.recipients).singleElement().satisfies {
+        assertThat(loaded.recipients).singleElement().satisfies(Consumer {
             assertThat(it.recipientType).isEqualTo(RecipientType.GROUP)
             assertThat(it.displayName).isEqualTo("Berlin Operations")
             assertThat(it.groupId).isEqualTo("group-berlin-ops")
             assertThat(it.groupName).isEqualTo("Berlin Operations")
             assertThat(it.email).isNull()
-        }
+        })
     }
 
     @Test

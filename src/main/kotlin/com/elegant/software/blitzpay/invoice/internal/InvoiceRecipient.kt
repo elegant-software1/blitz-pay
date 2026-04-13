@@ -40,7 +40,6 @@ class InvoiceRecipient(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "invoice_id", nullable = false)
     lateinit var invoice: Invoice
-        private set
 
     init {
         when (recipientType) {
