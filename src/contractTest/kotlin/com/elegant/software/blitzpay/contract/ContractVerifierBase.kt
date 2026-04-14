@@ -45,6 +45,8 @@ abstract class ContractVerifierBase {
                 paymentRequestId = requireNotNull(request.paymentRequestId),
                 orderId = request.orderId,
                 paymentId = "contract-test-payment-id",
+                resourceToken = "contract-test-resource-token",
+                redirectReturnUri = request.redirectReturnUri,
                 redirectURI = URI.create("https://contract-test.blitzpay.local/payments/${request.paymentRequestId}")
             )
         }
