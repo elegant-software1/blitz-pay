@@ -1,6 +1,12 @@
 package com.elegant.software.blitzpay.contract
 
 import com.elegant.software.blitzpay.payments.QuickpayApplication
+import com.elegant.software.blitzpay.payments.push.persistence.DeviceRegistrationRepository
+import com.elegant.software.blitzpay.payments.push.persistence.PaymentStatusRepository
+import com.elegant.software.blitzpay.payments.push.persistence.ProcessedWebhookEventRepository
+import com.elegant.software.blitzpay.payments.push.persistence.PushDeliveryAttemptRepository
+import com.elegant.software.blitzpay.support.ContractTestConfig
+import org.springframework.context.annotation.Import
 import com.elegant.software.blitzpay.payments.truelayer.api.PaymentRequested
 import com.elegant.software.blitzpay.payments.truelayer.api.PaymentResult
 import com.elegant.software.blitzpay.payments.truelayer.outbound.PaymentService
@@ -21,6 +27,7 @@ import java.net.URI
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
 )
 @ActiveProfiles("contract-test")
+@Import(ContractTestConfig::class)
 abstract class ContractVerifierBase {
 
     @LocalServerPort
@@ -36,6 +43,18 @@ abstract class ContractVerifierBase {
 
     @MockitoBean
     private lateinit var jwksService: JwksService
+
+    @MockitoBean
+    protected lateinit var paymentStatusRepository: PaymentStatusRepository
+
+    @MockitoBean
+    protected lateinit var deviceRegistrationRepository: DeviceRegistrationRepository
+
+    @MockitoBean
+    protected lateinit var processedWebhookEventRepository: ProcessedWebhookEventRepository
+
+    @MockitoBean
+    protected lateinit var pushDeliveryAttemptRepository: PushDeliveryAttemptRepository
 
     @BeforeEach
     fun setupRestAssured() {
