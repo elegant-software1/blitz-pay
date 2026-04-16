@@ -50,18 +50,54 @@ Mark the baseline changeset with `runOnChange: false` and `runAlways: false`.
 
 ### Step 3 — Update `application.yml`
 
+All application objects live in a dedicated `blitzpay` schema, never `public`.
+`public` is reserved for PostgreSQL extensions (`uuid-ossp`, `pg_trgm`, etc.).
+The `DATABASECHANGELOG` / `DATABASECHANGELOGLOCK` tables sit alongside the app
+tables in `blitzpay`.
+
 ```yaml
 spring:
-  liquibase:
-    change-log: classpath:db/changelog/db.changelog-master.yaml
-    enabled: true
+  datasource:
+    hikari:
+      connection-init-sql: "SET search_path TO blitzpay, public"
   jpa:
     hibernate:
       ddl-auto: validate   # ← change from 'update' to 'validate'
+    properties:
+      hibernate:
+        default_schema: blitzpay
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    enabled: true
+    default-schema: blitzpay
+    liquibase-schema: blitzpay
 ```
 
 `validate` lets Hibernate check that the schema matches the entity model,
 but never modifies the schema. Liquibase owns all schema changes from now on.
+
+### Step 4 — Bootstrap the `blitzpay` schema
+
+The first changeset must create the schema before any table goes into it.
+Keep it separate from the baseline dump so the baseline can be regenerated
+without losing the schema-creation step.
+
+```sql
+-- liquibase formatted sql
+
+-- changeset dev:0000-create-app-schema runAlways:false
+CREATE SCHEMA IF NOT EXISTS blitzpay;
+-- rollback DROP SCHEMA blitzpay;
+```
+
+When running `pg_dump` for the baseline (Step 2), dump only the `blitzpay`
+schema so extension objects in `public` don't bleed into the baseline:
+
+```bash
+pg_dump --schema-only --no-owner --no-acl \
+  --schema=blitzpay \
+  -U postgres quickpay_db > baseline.sql
+```
 
 ---
 
@@ -121,15 +157,41 @@ Examples:
 
 ---
 
-## 4. SQL Changeset Format
+## 4. Table and Index Naming Convention
+
+Tables are owned by exactly one Spring Modulith **leaf** module and are prefixed with that module's identifier. This keeps ownership visible in the schema, aligns with the "each direct sub-package is a module" rule (`CONSTITUTION.md` → Module Boundaries), and prevents accidental cross-module coupling at the data layer.
+
+**Format:** `{leaf_module}_{table}`
+
+| Leaf module package | Prefix | Example tables |
+|---|---|---|
+| `payments.push` | `push_` | `push_device_registration`, `push_payment_status`, `push_delivery_attempt`, `push_processed_webhook_event` |
+| `payments.qrpay` | `qrpay_` | `qrpay_request`, `qrpay_session` |
+| `payments.truelayer` | `truelayer_` | `truelayer_payment`, `truelayer_webhook_event` |
+| `invoice` | `invoice_` | `invoice_document`, `invoice_line_item` |
+
+Rules:
+- A table may only be read/written by its owning module. Cross-module consumers go through the owning module's `api` surface (named interfaces, events).
+- Use the **leaf** module, not the parent — `push_` not `payments_`. This mirrors how modules are actually enforced by Modulith verification.
+- Pick a consistent prefix per leaf and keep it short (one token). Do not reuse the same prefix across modules.
+
+**Index naming** mirrors the table prefix:
+- Non-unique: `ix_{table}_{column}` — e.g., `ix_push_device_registration_payment_request`
+- Unique:     `ux_{table}_{column}` — e.g., `ux_push_device_registration_token`
+
+Foreign key constraints: `fk_{table}_{referenced_table}`.
+
+---
+
+## 5. SQL Changeset Format
 
 Use SQL format for changesets — it's readable, diffable, and works with any database tool.
 
 ```sql
 -- liquibase formatted sql
 
--- changeset dev:0002-add-invoice-table
-CREATE TABLE invoices (
+-- changeset dev:0002-add-invoice-document-table
+CREATE TABLE invoice_document (
     id              UUID        NOT NULL PRIMARY KEY,
     invoice_number  VARCHAR(50) NOT NULL UNIQUE,
     issue_date      DATE        NOT NULL,
@@ -141,11 +203,11 @@ CREATE TABLE invoices (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
--- rollback DROP TABLE invoices;
+-- rollback DROP TABLE invoice_document;
 
--- changeset dev:0002-add-invoice-table-index
-CREATE INDEX idx_invoices_status ON invoices (status);
--- rollback DROP INDEX idx_invoices_status;
+-- changeset dev:0002-add-invoice-document-status-index
+CREATE INDEX ix_invoice_document_status ON invoice_document (status);
+-- rollback DROP INDEX ix_invoice_document_status;
 ```
 
 **Rules:**
@@ -156,7 +218,7 @@ CREATE INDEX idx_invoices_status ON invoices (status);
 
 ---
 
-## 5. Never Modify an Applied Changeset
+## 6. Never Modify an Applied Changeset
 
 Once a changeset has been applied to any environment (dev, staging, prod), never edit it.
 Liquibase checksums the changeset content and will fail on startup if it detects a change.
@@ -168,13 +230,13 @@ Liquibase checksums the changeset content and will fail on startup if it detects
 -- Right: add a new changeset
 
 -- changeset dev:0004-rename-buyer-tax-id-to-vat-id
-ALTER TABLE invoices RENAME COLUMN buyer_tax_id TO buyer_vat_id;
--- rollback ALTER TABLE invoices RENAME COLUMN buyer_vat_id TO buyer_tax_id;
+ALTER TABLE invoice_document RENAME COLUMN buyer_tax_id TO buyer_vat_id;
+-- rollback ALTER TABLE invoice_document RENAME COLUMN buyer_vat_id TO buyer_tax_id;
 ```
 
 ---
 
-## 6. Rollback Strategy
+## 7. Rollback Strategy
 
 Always write rollback instructions in every changeset. They enable:
 - Fast recovery from a bad deployment
@@ -196,7 +258,7 @@ liquibase tag v1.2.3
 
 ---
 
-## 7. Application Startup Behavior
+## 8. Application Startup Behavior
 
 With Liquibase enabled:
 1. On startup, Spring runs all pending changesets in order before the application context
@@ -208,7 +270,7 @@ This replaces the non-deterministic behaviour of `ddl-auto: update`.
 
 ---
 
-## 8. Running Liquibase in Tests
+## 9. Running Liquibase in Tests
 
 For contract tests (which mock the datasource), Liquibase must be disabled:
 

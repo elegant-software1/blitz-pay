@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/0000-create-app-schema.sql
+  - include:
+      file: db/changelog/0001-baseline.sql
+  - include:
+      file: db/changelog/0002-rename-push-tables.sql

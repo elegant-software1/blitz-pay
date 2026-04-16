@@ -76,7 +76,7 @@ Semantic commits: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`. Summaries: sh
 
 ## Active Technologies
 - Kotlin 2.3.20 on Java 25 (unchanged) + Spring Boot 4.0.4, Spring WebFlux, Spring Modulith, Hibernate/JPA on PostgreSQL 16, TrueLayer Java SDK (unchanged). New: Reactor `WebClient` against the Expo Push HTTPS API (`https://exp.host/--/api/v2/push/send`) — no additional SDK; a thin in-repo client keeps the dependency surface minimal. (006-push-notifications)
-- PostgreSQL via JPA (`ddl-auto: update`, no migration framework — matches current project convention). Two new tables: `payment_status` (authoritative current state per payment request) and `device_registration` (Expo push tokens per payment request / payer). Optional `push_delivery_attempt` for observability; kept in-memory-only if retention cost is a concern. (006-push-notifications)
+- PostgreSQL via JPA. Schema owned by Liquibase per `CONSTITUTION.md` (Persistence and Schema); Hibernate `ddl-auto` must be `validate` or `none`. Table names use the leaf-module prefix (e.g. `push_device_registration`, `push_payment_status`, `push_delivery_attempt`, `push_processed_webhook_event`). (006-push-notifications)
 
 ## Recent Changes
 - 006-push-notifications: Added Kotlin 2.3.20 on Java 25 (unchanged) + Spring Boot 4.0.4, Spring WebFlux, Spring Modulith, Hibernate/JPA on PostgreSQL 16, TrueLayer Java SDK (unchanged). New: Reactor `WebClient` against the Expo Push HTTPS API (`https://exp.host/--/api/v2/push/send`) — no additional SDK; a thin in-repo client keeps the dependency surface minimal.
