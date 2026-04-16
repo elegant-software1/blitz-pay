@@ -36,6 +36,16 @@ Both human contributors and AI agents. When in doubt about a convention, this fi
 - **Tests must pass before committing.** Run `./gradlew check` (unit + contract tests) locally before pushing. Do not commit, merge, or push code with failing tests.
 - Fixture files are checked into version control. Do not generate fixtures at test time; keep them static and reviewable.
 
+## Persistence and Schema
+
+- **Liquibase** owns all schema evolution. No schema change may go to staging or production via `ddl-auto: update` or `create`. See [`reference/liquibase-best-practices.md`](reference/liquibase-best-practices.md) for changelog structure, naming, and rollback rules.
+- **Application objects live in the `blitzpay` schema, not `public`.** The `public` schema is reserved for PostgreSQL extensions. Liquibase's `DATABASECHANGELOG` and `DATABASECHANGELOGLOCK` tables also live in `blitzpay` (configured via `spring.liquibase.default-schema` / `liquibase-schema`). JDBC connections set `search_path = blitzpay, public` so unqualified names resolve to app tables first and extension functions remain reachable.
+- Hibernate `ddl-auto` must be `validate` (runtime) or `none` (tests). `update` is only tolerated on a developer laptop while Liquibase adoption is in progress; it must not reach CI.
+- Every schema change — new table, new column, index, rename, backfill — is one or more Liquibase changesets under `src/main/resources/db/changelog/`. Every changeset includes a `-- rollback` directive.
+- **Table names are prefixed with the leaf module name.** Each table is owned by exactly one Spring Modulith leaf module; its name begins with that module's identifier followed by an underscore (e.g., `push_device_registration`, `invoice_line_item`, `qrpay_request`). Cross-module table access is not permitted — consume data via the owning module's `api` surface.
+- Index names follow the same prefix and mirror the table: `ix_{table}_{column}` for non-unique, `ux_{table}_{column}` for unique.
+- Column names are `snake_case`; timestamp columns use `TIMESTAMPTZ` (never `TIMESTAMP`).
+
 ## Security
 
 - Never commit secrets, credentials, private keys, or environment-specific configuration to the repository.
