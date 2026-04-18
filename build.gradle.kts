@@ -107,7 +107,7 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
     runtimeOnly("org.springframework.modulith:spring-modulith-actuator")
     runtimeOnly("org.springframework.modulith:spring-modulith-observability")
-    implementation(libs.liquibase.core)
+    implementation("org.springframework.boot:spring-boot-starter-liquibase")
 
     // ----------------------------
     // Tests (shared)
