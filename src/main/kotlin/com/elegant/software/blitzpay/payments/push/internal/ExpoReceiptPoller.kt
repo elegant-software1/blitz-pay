@@ -4,12 +4,16 @@ import com.elegant.software.blitzpay.payments.push.config.ExpoPushProperties
 import com.elegant.software.blitzpay.payments.push.persistence.DeliveryOutcome
 import com.elegant.software.blitzpay.payments.push.persistence.PushDeliveryAttemptRepository
 import mu.KotlinLogging
+import org.springframework.boot.context.event.ApplicationReadyEvent
+import org.springframework.context.event.EventListener
 import org.springframework.http.MediaType
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
+
 
 @Component
 open class ExpoReceiptPoller(
@@ -19,9 +23,15 @@ open class ExpoReceiptPoller(
     private val deviceRegistrationService: DeviceRegistrationService,
 ) {
     private val log = KotlinLogging.logger {}
+    private val ready = AtomicBoolean(false)
 
+    @EventListener(ApplicationReadyEvent::class)
+    fun markReady() {
+        ready.set(true)
+    }
     @Scheduled(fixedDelayString = "\${blitzpay.expo.receipt-poll-interval-ms:60000}")
     open fun poll() {
+        if (!ready.get()) return
         val cutoff = Instant.now().minus(Duration.ofMinutes(properties.receiptDelayMinutes))
         val pending = attemptRepository.findAll()
             .filter { it.ticketId != null && it.receiptOutcome == null && it.createdAt.isBefore(cutoff) }
