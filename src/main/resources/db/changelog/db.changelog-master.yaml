@@ -1,7 +1,5 @@
 databaseChangeLog:
   - include:
-      file: db/changelog/0000-create-app-schema.sql
+      file: db/changelog/20260417-001-create-blitzpay-schema.sql
   - include:
-      file: db/changelog/0001-baseline.sql
-  - include:
-      file: db/changelog/0002-rename-push-tables.sql
+      file: db/changelog/20260418-001-create-push-tables.sql

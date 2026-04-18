@@ -5,55 +5,24 @@ See `CONTRIBUTING.md` for the link to this document.
 
 ---
 
-## Current State
+## 1. Dependency (Spring Boot 4)
 
-This project currently uses **Hibernate `ddl-auto: update`** for schema management.
-This is acceptable in early development but must be migrated to Liquibase before going
-to production with real data.
-
-`ddl-auto: update` risks:
-- Silent column/table drops on rename
-- No rollback capability
-- No audit trail of schema changes
-- Cannot replay schema history on a fresh database reproducibly
-
----
-
-## 1. Migration from `ddl-auto: update` to Liquibase
-
-### Step 1 — Add Liquibase dependency
+Spring Boot 4 moved Liquibase support into a dedicated starter. Use the starter —
+not the raw `liquibase-core` artifact — so that autoconfiguration is registered correctly.
 
 ```kotlin
 // build.gradle.kts
-dependencies {
-    implementation("org.liquibase:liquibase-core")
-}
+implementation("org.springframework.boot:spring-boot-starter-liquibase")
 ```
 
-### Step 2 — Generate baseline from existing schema
+> **Why not `org.liquibase:liquibase-core` directly?**
+> Spring Boot 4 ships `LiquibaseAutoConfiguration` in a separate autoconfig module
+> that is only pulled in via the starter. Adding `liquibase-core` alone leaves the
+> autoconfig absent, so Liquibase never runs at startup.
 
-Export the current schema from your running PostgreSQL database as the baseline
-changelog. This represents "everything that exists before Liquibase took over."
+---
 
-```bash
-# On the server — dump current schema (no data)
-pg_dump --schema-only --no-owner --no-acl \
-  -U postgres quickpay_db > baseline.sql
-```
-
-Convert to a Liquibase-formatted changelog and place it at:
-```
-src/main/resources/db/changelog/0001-baseline.sql
-```
-
-Mark the baseline changeset with `runOnChange: false` and `runAlways: false`.
-
-### Step 3 — Update `application.yml`
-
-All application objects live in a dedicated `blitzpay` schema, never `public`.
-`public` is reserved for PostgreSQL extensions (`uuid-ossp`, `pg_trgm`, etc.).
-The `DATABASECHANGELOG` / `DATABASECHANGELOGLOCK` tables sit alongside the app
-tables in `blitzpay`.
+## 2. `application.yml` Configuration
 
 ```yaml
 spring:
@@ -62,104 +31,91 @@ spring:
       connection-init-sql: "SET search_path TO blitzpay, public"
   jpa:
     hibernate:
-      ddl-auto: validate   # ← change from 'update' to 'validate'
+      ddl-auto: none        # Liquibase owns the schema; Hibernate must not touch it
     properties:
       hibernate:
         default_schema: blitzpay
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     enabled: true
-    default-schema: blitzpay
-    liquibase-schema: blitzpay
+    default-schema: blitzpay   # working schema for app objects
+    liquibase-schema: public   # where DATABASECHANGELOG / DATABASECHANGELOGLOCK live
 ```
 
-`validate` lets Hibernate check that the schema matches the entity model,
-but never modifies the schema. Liquibase owns all schema changes from now on.
-
-### Step 4 — Bootstrap the `blitzpay` schema
-
-The first changeset must create the schema before any table goes into it.
-Keep it separate from the baseline dump so the baseline can be regenerated
-without losing the schema-creation step.
-
-```sql
--- liquibase formatted sql
-
--- changeset dev:0000-create-app-schema runAlways:false
-CREATE SCHEMA IF NOT EXISTS blitzpay;
--- rollback DROP SCHEMA blitzpay;
-```
-
-When running `pg_dump` for the baseline (Step 2), dump only the `blitzpay`
-schema so extension objects in `public` don't bleed into the baseline:
-
-```bash
-pg_dump --schema-only --no-owner --no-acl \
-  --schema=blitzpay \
-  -U postgres quickpay_db > baseline.sql
-```
+`ddl-auto: none` means Hibernate never creates or modifies tables.
+`ddl-auto: validate` is the production alternative — it validates entities against
+the schema but still does not modify it.
 
 ---
 
-## 2. Changelog File Structure
-
-Use a master changelog that includes individual versioned files.
+## 3. Changelog File Structure
 
 ```
 src/main/resources/db/
 └── changelog/
-    ├── db.changelog-master.yaml     ← master index, includes all others
-    ├── 0001-baseline.sql            ← initial schema snapshot
-    ├── 0002-add-invoice-table.sql
-    ├── 0003-add-payment-status-index.sql
-    └── 0004-rename-order-id-column.sql
+    ├── db.changelog-master.yaml              ← include list only, no inline changesets
+    ├── 20260417-001-create-blitzpay-schema.sql
+    ├── 20260418-001-create-push-tables.sql
+    └── YYYYMMDD-NNN-<verb>-<object>.sql      ← future migrations follow this pattern
 ```
 
-**`db.changelog-master.yaml`:**
-
-```yaml
-databaseChangeLog:
-  - includeAll:
-      path: db/changelog/
-      relativeToChangelogFile: false
-      filter: liquibase.resource.DirectoryResourceAccessor
-```
-
-Or use explicit includes for deterministic ordering:
+**`db.changelog-master.yaml`** is an ordered include list. Add each new file here
+in chronological order. Never put changesets directly in this file.
 
 ```yaml
 databaseChangeLog:
   - include:
-      file: db/changelog/0001-baseline.sql
+      file: db/changelog/20260417-001-create-blitzpay-schema.sql
   - include:
-      file: db/changelog/0002-add-invoice-table.sql
+      file: db/changelog/20260418-001-create-push-tables.sql
 ```
 
 ---
 
-## 3. Changeset Naming Convention
+## 4. File and Changeset Naming Convention
+
+### File names
 
 ```
-{sequence}-{description}.sql
+YYYYMMDD-NNN-<verb>-<object>.sql
 ```
 
-- `{sequence}` — zero-padded 4-digit number: `0001`, `0002`, `0100`
-- `{description}` — short kebab-case description of what the migration does
+| Part | Rule | Example |
+|---|---|---|
+| `YYYYMMDD` | Date the script is authored | `20260418` |
+| `NNN` | Sequential within the same day, zero-padded to 3 digits | `001`, `002` |
+| `<verb>` | What is being done | `create`, `add`, `rename`, `drop`, `alter` |
+| `<object>` | Target table, column, or index | `push-tables`, `device-registration-index` |
 
 Examples:
 ```
-0001-baseline.sql
-0002-add-invoice-table.sql
-0003-add-payment-request-status-index.sql
-0004-rename-buyer-tax-id-to-vat-id.sql
-0050-add-webhook-events-table.sql
+20260418-001-create-push-tables.sql
+20260419-001-add-push-delivery-retry-count.sql
+20260419-002-add-push-payment-status-index.sql
+20260501-001-rename-payer-ref-to-external-ref.sql
+```
+
+### Changeset IDs
+
+Format: `author:YYYYMMDD-NNN-description`
+
+- The `author:id` pair must be globally unique across the entire changelog history.
+- Use your Git username as the author — not `dev`.
+- Number changesets within a file sequentially when one file contains multiple changesets.
+
+```sql
+-- changeset mehdi:20260418-001-push-device-registration
+-- changeset mehdi:20260418-002-push-payment-status
+-- changeset mehdi:20260418-003-push-processed-webhook-event
+-- changeset mehdi:20260418-004-push-delivery-attempt
 ```
 
 ---
 
-## 4. Table and Index Naming Convention
+## 5. Table and Index Naming Convention
 
-Tables are owned by exactly one Spring Modulith **leaf** module and are prefixed with that module's identifier. This keeps ownership visible in the schema, aligns with the "each direct sub-package is a module" rule (`CONSTITUTION.md` → Module Boundaries), and prevents accidental cross-module coupling at the data layer.
+All application objects live in the `blitzpay` schema. Tables are owned by exactly
+one Spring Modulith **leaf** module and are prefixed with that module's identifier.
 
 **Format:** `{leaf_module}_{table}`
 
@@ -171,121 +127,105 @@ Tables are owned by exactly one Spring Modulith **leaf** module and are prefixed
 | `invoice` | `invoice_` | `invoice_document`, `invoice_line_item` |
 
 Rules:
-- A table may only be read/written by its owning module. Cross-module consumers go through the owning module's `api` surface (named interfaces, events).
-- Use the **leaf** module, not the parent — `push_` not `payments_`. This mirrors how modules are actually enforced by Modulith verification.
-- Pick a consistent prefix per leaf and keep it short (one token). Do not reuse the same prefix across modules.
+- A table may only be read/written by its owning module.
+- Use the **leaf** module prefix, not the parent — `push_` not `payments_`.
+- Cross-module access goes through the owning module's `api` surface (named interfaces, events).
 
-**Index naming** mirrors the table prefix:
-- Non-unique: `ix_{table}_{column}` — e.g., `ix_push_device_registration_payment_request`
-- Unique:     `ux_{table}_{column}` — e.g., `ux_push_device_registration_token`
-
-Foreign key constraints: `fk_{table}_{referenced_table}`.
+**Index naming:**
+- Non-unique: `ix_{table}_{column}` → `ix_push_device_registration_payment_request`
+- Unique:     `ux_{table}_{column}` → `ux_push_device_registration_token`
+- Foreign key: `fk_{table}_{referenced_table}`
 
 ---
 
-## 5. SQL Changeset Format
+## 6. SQL Changeset Format
 
-Use SQL format for changesets — it's readable, diffable, and works with any database tool.
+Use SQL format (`.sql` extension). It is readable, diffable, and works with any database tool.
 
 ```sql
 -- liquibase formatted sql
 
--- changeset dev:0002-add-invoice-document-table
-CREATE TABLE invoice_document (
-    id              UUID        NOT NULL PRIMARY KEY,
-    invoice_number  VARCHAR(50) NOT NULL UNIQUE,
-    issue_date      DATE        NOT NULL,
-    due_date        DATE        NOT NULL,
-    status          VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
-    amount_cents    BIGINT      NOT NULL,
-    currency        CHAR(3)     NOT NULL DEFAULT 'EUR',
-    buyer_vat_id    VARCHAR(30),
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+-- changeset mehdi:20260419-001-create-qrpay-request
+CREATE TABLE blitzpay.qrpay_request (
+    id              UUID         NOT NULL,
+    payer_ref       VARCHAR(128) NOT NULL,
+    amount_cents    BIGINT       NOT NULL,
+    currency        CHAR(3)      NOT NULL DEFAULT 'EUR',
+    status          VARCHAR(32)  NOT NULL,
+    created_at      TIMESTAMPTZ  NOT NULL,
+    updated_at      TIMESTAMPTZ  NOT NULL,
+    CONSTRAINT pk_qrpay_request PRIMARY KEY (id)
 );
--- rollback DROP TABLE invoice_document;
+CREATE INDEX ix_qrpay_request_payer_ref ON blitzpay.qrpay_request (payer_ref);
+-- rollback DROP TABLE blitzpay.qrpay_request;
 
--- changeset dev:0002-add-invoice-document-status-index
-CREATE INDEX ix_invoice_document_status ON invoice_document (status);
--- rollback DROP INDEX ix_invoice_document_status;
+-- changeset mehdi:20260419-002-add-qrpay-request-status-index
+CREATE INDEX ix_qrpay_request_status ON blitzpay.qrpay_request (status);
+-- rollback DROP INDEX blitzpay.ix_qrpay_request_status;
 ```
 
 **Rules:**
-- Every `changeset` must have a `-- rollback` comment describing how to undo it
-- `id` format: `{author}:{sequence}-{description}` — makes it unique in the `DATABASECHANGELOG` table
-- Use `TIMESTAMPTZ` (timestamp with timezone) for all timestamp columns — never `TIMESTAMP`
-- One logical change per changeset (table creation, index, column add — each gets its own)
+- Always schema-qualify DDL: `blitzpay.table_name`, not just `table_name`.
+- Every changeset must have a `-- rollback` directive.
+- Use `TIMESTAMPTZ` — never plain `TIMESTAMP`.
+- One logical change per changeset. A `CREATE TABLE` and its indexes may be in the same
+  changeset; adding a column later is always a separate changeset.
+- Use `runInTransaction:false` only for DDL that PostgreSQL cannot run in a transaction
+  (e.g., `CREATE SCHEMA`, `CREATE INDEX CONCURRENTLY`).
 
 ---
 
-## 6. Never Modify an Applied Changeset
+## 7. Never Modify an Applied Changeset
 
-Once a changeset has been applied to any environment (dev, staging, prod), never edit it.
-Liquibase checksums the changeset content and will fail on startup if it detects a change.
+Once a changeset has been applied to any environment, never edit its SQL.
+Liquibase checksums the content and will refuse to start if it detects a mismatch.
 
-**Instead**, add a new changeset:
+To fix or extend something, add a new changeset:
 
 ```sql
--- Wrong: editing 0002 after it has been applied
--- Right: add a new changeset
+-- Wrong: editing 20260418-001 after it has been applied to staging
+-- Right:
 
--- changeset dev:0004-rename-buyer-tax-id-to-vat-id
-ALTER TABLE invoice_document RENAME COLUMN buyer_tax_id TO buyer_vat_id;
--- rollback ALTER TABLE invoice_document RENAME COLUMN buyer_vat_id TO buyer_tax_id;
+-- changeset mehdi:20260501-001-rename-payer-ref-to-external-ref
+ALTER TABLE blitzpay.push_device_registration
+    RENAME COLUMN payer_ref TO external_ref;
+-- rollback ALTER TABLE blitzpay.push_device_registration RENAME COLUMN external_ref TO payer_ref;
 ```
 
 ---
 
-## 7. Rollback Strategy
+## 8. Rollback Strategy
 
-Always write rollback instructions in every changeset. They enable:
-- Fast recovery from a bad deployment
-- Local dev iteration without resetting the database
-- CI environment teardown
+Always write rollback instructions. They enable fast recovery and CI teardown.
 
 ```bash
-# Roll back the last 1 changeset
+# Roll back the last N changesets
 liquibase rollbackCount 1
 
-# Roll back to a specific tag
+# Roll back to a tagged release
 liquibase rollback v1.2.3
 ```
 
-Tag a release before deploying:
+Tag before deploying:
 ```bash
 liquibase tag v1.2.3
 ```
 
 ---
 
-## 8. Application Startup Behavior
+## 9. Tests
 
-With Liquibase enabled:
-1. On startup, Spring runs all pending changesets in order before the application context
-   fully starts
-2. If a changeset fails, the application fails to start — schema and app are always in sync
-3. The `DATABASECHANGELOG` table tracks what has been applied and when
-
-This replaces the non-deterministic behaviour of `ddl-auto: update`.
-
----
-
-## 9. Running Liquibase in Tests
-
-For contract tests (which mock the datasource), Liquibase must be disabled:
+**Contract tests** mock the datasource — disable Liquibase:
 
 ```yaml
 # src/contractTest/resources/application-contract-test.yml
 spring:
   liquibase:
     enabled: false
-  jpa:
-    hibernate:
-      ddl-auto: none
 ```
 
-For integration tests that use a real database (Testcontainers), Liquibase runs normally —
-this is the correct behavior since it validates the migration against a real PostgreSQL instance.
+**Integration tests** (Testcontainers) run Liquibase normally — this is the correct
+behaviour since it validates migrations against a real PostgreSQL instance.
 
 ---
 
