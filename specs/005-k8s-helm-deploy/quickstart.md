@@ -34,7 +34,11 @@ kubectl create secret generic blitzpay-secrets \
   --from-literal=TRUELAYER_KEY_ID="<key-id>" \
   --from-literal=TRUELAYER_PRIVATE_KEY_PATH="/secrets/private.pem" \
   --from-literal=TRUELAYER_MERCHANT_ACCOUNT_ID="<merchant-id>" \
-  --from-literal=TRUELAYER_ACCESS_TOKEN="<access-token>"
+  --from-literal=TRUELAYER_ACCESS_TOKEN="<access-token>" \
+  --from-literal=STRIPE_SECRET_KEY="<stripe-secret-key>" \
+  --from-literal=BRAINTREE_MERCHANT_ID="<braintree-merchant-id>" \
+  --from-literal=BRAINTREE_PUBLIC_KEY="<braintree-public-key>" \
+  --from-literal=BRAINTREE_PRIVATE_KEY="<braintree-private-key>"
 ```
 
 > **Never commit these values to Git.** The Helm chart references the secret by name only.
