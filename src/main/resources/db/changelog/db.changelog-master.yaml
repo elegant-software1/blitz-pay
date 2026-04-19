@@ -3,3 +3,5 @@ databaseChangeLog:
       file: db/changelog/20260417-001-create-blitzpay-schema.sql
   - include:
       file: db/changelog/20260418-001-create-push-tables.sql
+  - include:
+      file: db/changelog/20260419-001-create-event-publication.sql
