@@ -52,10 +52,10 @@ Acceptance Scenarios:
 
 - FR-001: MCP MUST expose create and update APIs for MerchantLocation tied to an existing MerchantBranch.
 - FR-002: MCP MUST expose create and update APIs for Product scoped to a MerchantLocation.
-- FR-003: API MUST validate that branchId exists and belongs to the requesting tenant; calls that would create a new Branch MUST be rejected.
-- FR-004: API MUST return standard HTTP status codes: 201 on create, 200 on update, 400 on validation errors, 404 for missing parent resources, 409 for business conflicts.
+- FR-003: API MUST validate that branchId exists and belongs to the requesting tenant. Authentication MUST be via tenant-scoped JWT including a branch ownership claim (e.g., branch_id or tenant_id). Requests lacking proper tenant/branch claim MUST be rejected with 403. Calls that would create a new Branch MUST be rejected.
+- FR-004: API MUST return standard HTTP status codes: 201 on create, 200 on update, 400 on validation errors, 404 for missing parent resources, 409 for business conflicts, 412 for precondition failures (optimistic locking). Updates SHOULD accept an If-Match (ETag) header or a version field and return 412 Precondition Failed when the client's expected version does not match the current resource.
 - FR-005: Persistent fields: id, branchId, locationId (for product), createdAt, updatedAt, active flag.
-- FR-006: API MUST support idempotent create (client-provided idempotency key or id) to avoid duplicates.
+- FR-006: API MUST support idempotent create. Support both an Idempotency-Key header (server-side deduplication by header) and an optional client-supplied UUID in the request body. The server should treat requests with the same Idempotency-Key or client-supplied id as the same operation and return the original resource on retries. Return 409 only for business conflicts that are not idempotent retries.
 - FR-007: Auditing: user/agent identity and request metadata recorded for create/update actions.
 - FR-008: Updates MUST support partial updates via PATCH for MerchantLocation and Product; PUT (full replace) optional.
 ### Key Entities
@@ -83,4 +83,8 @@ Acceptance Scenarios:
 
 ### Session 2026-04-21
 - Q: Update semantics for MerchantLocation/Product APIs → A: PATCH (partial updates) (recommended: easier for agents and avoids sending full resource)
+- Q: Domain canonical name for routes → A: Support both (C) - alias /v1/merchants and /v1/branches (route aliasing)
+- Q: Idempotency strategy for create endpoints → A: Support both header and optional client id (D) - flexible, prefer Idempotency-Key when available
+- Q: Authorization/tenant enforcement → A: Require tenant-scoped JWT with branch claim (A) - enforces tenant isolation and least privilege
+- Q: Conflict resolution for concurrent updates → A: Optimistic locking (B) - use If-Match/ETag or version precondition, return 412 on mismatch
 
