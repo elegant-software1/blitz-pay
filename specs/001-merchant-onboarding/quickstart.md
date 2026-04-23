@@ -53,6 +53,9 @@ Expected coverage for this feature:
 - Multipart create with valid JPEG/PNG/WebP stores a product and object key.
 - Multipart create/update accepts optional Markdown description up to 2,000 characters.
 - Multipart update with valid image replaces the stored image key.
+- MCP product ingestion with `imageBase64` or `imageFilePath` stores a product image through the same object-key storage path.
+- MCP product ingestion with crop coordinates stores the cropped image, not the uncropped source image.
+- MCP-created branches and products are persisted as inactive by default and can be updated by later MCP calls while inactive.
 - Description longer than 2,000 characters returns HTTP 400 and performs no DB/object write.
 - Unsupported MIME type returns HTTP 400 and performs no DB/object write.
 - Image larger than 5 MB returns HTTP 400 and performs no DB/object write.
@@ -114,3 +117,48 @@ Expected response:
 - Structured validation error
 - No product record persisted
 - No object uploaded
+
+## MCP Ingestion Check
+
+MCP catalog ingestion uses the same `MerchantProductService` storage path as REST, but it is optimized for agent workflows that extract data from menu photos or external sources.
+
+Expected MCP behavior:
+
+- `branch_id_by_name_or_create` creates a missing branch with `active = false`.
+- `branch_id_by_name_or_create` finds and updates existing inactive branches by merchant/name.
+- `product_id_by_name_or_create` creates a missing product with `active = false`.
+- `product_id_by_name_or_create` finds and updates existing inactive products by merchant/branch/name.
+- `product_id_by_name_or_create` and `merchant_product_update` accept `imageBase64` or `imageFilePath`.
+- Optional `cropX`, `cropY`, `cropWidth`, and `cropHeight` crop JPEG/PNG inputs before upload.
+
+Example MCP product update payload shape:
+
+```json
+{
+  "merchantId": "${MERCHANT_ID}",
+  "branchId": "${BRANCH_ID}",
+  "productName": "Erdbeer Becher",
+  "unitPrice": "8.00",
+  "description": "Vanilleeis, frische Erdbeeren, Sahne und selbst gemachte Erdbeersoße.",
+  "imageFilePath": "/tmp/eis-molin-crops/erdbeer-becher-thumb.jpg",
+  "imageContentType": "image/jpeg"
+}
+```
+
+When using an uncropped source image:
+
+```json
+{
+  "merchantId": "${MERCHANT_ID}",
+  "branchId": "${BRANCH_ID}",
+  "productName": "Erdbeer Becher",
+  "unitPrice": "8.00",
+  "description": "Vanilleeis, frische Erdbeeren, Sahne und selbst gemachte Erdbeersoße.",
+  "imageFilePath": "/tmp/eis-molin-menu.jpg",
+  "imageContentType": "image/jpeg",
+  "cropX": 120,
+  "cropY": 2500,
+  "cropWidth": 900,
+  "cropHeight": 900
+}
+```

@@ -113,6 +113,18 @@ braintree:
   environment: ${BRAINTREE_ENVIRONMENT:sandbox}
 
 blitzpay:
+  cors:
+    allowed-origins:
+      - ${FRONTEND_ORIGIN:http://localhost:4200}
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    allowed-headers:
+      - "*"
   storage:
     endpoint: ${STORAGE_ENDPOINT:http://myserver:7070}
     region: ${STORAGE_REGION:us-east-1}

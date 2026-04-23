@@ -10,7 +10,7 @@ Entities
    - latitude: Double
    - longitude: Double
    - googlePlaceId: String?
-   - active: Boolean (default true)
+   - active: Boolean (default true for REST/API managed records; MCP-created branch placeholders default inactive at the branch level)
    - createdAt: Instant
    - updatedAt: Instant
 
@@ -27,12 +27,15 @@ Entities
    - description: String?
    - priceMinor: Integer (>=0)
    - currency: ISO-4217 code
-   - active: Boolean (default true)
+   - imageStorageKey: String? (stable private object-storage key)
+   - active: Boolean (default true for REST/API creation; default false for MCP-created ingestion records)
    - createdAt, updatedAt
 
    Validation
    - branchId and locationId must exist and be active (unless business rule allows)
    - priceMinor required and non-negative
+   - MCP image ingestion accepts JPEG, PNG, or WebP up to the product image size limit
+   - MCP crop coordinates must be complete (`cropX`, `cropY`, `cropWidth`, `cropHeight`), positive for width/height, and inside source image bounds
 
 Indexes
 - idx_locations_branch_id (branchId)
@@ -41,3 +44,6 @@ Indexes
 Notes
 - Keep branch ownership immutable on create; updates cannot change branchId.
 - Use optimistic concurrency via updatedAt timestamp for simple conflict resolution.
+- MCP helper tools may create missing branches/products by name, but new MCP-created records remain inactive until reviewed.
+- MCP lookup/update paths include inactive branches/products to prevent duplicate draft records during repeated ingestion.
+- Product image references are object keys only; signed URLs are generated at read time after access checks.
