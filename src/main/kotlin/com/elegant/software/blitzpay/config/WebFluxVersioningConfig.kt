@@ -4,11 +4,13 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.http.server.PathContainer
 import org.springframework.web.reactive.accept.ApiVersionResolver
 import org.springframework.web.reactive.config.ApiVersionConfigurer
+import org.springframework.web.reactive.config.CorsRegistry
 import org.springframework.web.reactive.config.WebFluxConfigurer
 
 @Configuration
 class WebFluxVersioningConfig(
-    private val apiVersionProperties: ApiVersionProperties
+    private val apiVersionProperties: ApiVersionProperties,
+    private val corsProperties: CorsProperties
 ) : WebFluxConfigurer {
 
     override fun configureApiVersioning(configurer: ApiVersionConfigurer) {
@@ -17,6 +19,13 @@ class WebFluxVersioningConfig(
             .setVersionRequired(false)
             .setDefaultVersion(apiVersionProperties.defaultVersion)
             .detectSupportedVersions(true)
+    }
+
+    override fun addCorsMappings(registry: CorsRegistry) {
+        registry.addMapping("/**")
+            .allowedOrigins(*corsProperties.allowedOrigins.toTypedArray())
+            .allowedMethods(*corsProperties.allowedMethods.toTypedArray())
+            .allowedHeaders(*corsProperties.allowedHeaders.toTypedArray())
     }
 }
 

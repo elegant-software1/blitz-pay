@@ -3,7 +3,7 @@
 **Feature Branch**: `001-merchant-onboarding`
 **Created**: 2026-04-21
 **Status**: Draft
-**Input**: "Expose merchant location and product create/update API on the MCP server so other LLM/AI agents can create and update merchant locations and products for existing branches (do not create new branches)."
+**Input**: "Expose merchant location and product create/update API on the MCP server so other LLM/AI agents can create and update merchant locations and products. MCP ingestion may create placeholder branches/products, but newly created records must remain inactive until reviewed."
 
 ## User Scenarios & Testing (mandatory)
 
@@ -40,40 +40,55 @@ Acceptance Scenarios:
 
 ---
 
+### User Story 4 - Ingest Catalog Images from Agent Sources (Priority: P2)
+Agents must be able to create or update product records from menu photos by supplying a local image path or base64 image bytes, optionally with crop coordinates that isolate the product image before upload.
+
+Independent Test: Call the MCP product tool with a valid JPEG/PNG file path and crop rectangle; verify the product image is uploaded to object storage, the product stores an object key, and the product remains inactive if newly created.
+
+Acceptance Scenarios:
+1. Given a server-readable image file path, when the agent creates or updates a product through MCP, then the image is uploaded through the standard private object-storage path.
+2. Given valid crop coordinates, when the agent submits the image through MCP, then only the cropped image is stored.
+3. Given a missing file path, invalid base64, unsupported content type, oversized image, or invalid crop rectangle, then the MCP call fails without leaving a partial product update.
+
 ## Edge Cases
 
 - Creation requests for locations/products with duplicate external IDs should be idempotent.
 - Partial updates with invalid data must return 400 without mutating persisted resource.
 - Product creation when the branch exists but location is inactive should return 409 or configurable policy.
+- MCP-created branches/products must not become buyer-visible before review; they are created with `active = false`.
+- MCP lookup/update must find inactive records so repeated ingestion updates the same draft record instead of creating duplicates.
 
 ## Requirements (mandatory)
 
 ### Functional Requirements
 
 - FR-001: MCP MUST expose create and update APIs for MerchantLocation tied to an existing MerchantBranch.
-- FR-002: MCP MUST expose create and update APIs for Product scoped to a MerchantLocation.
-- FR-003: API MUST validate that branchId exists and belongs to the requesting tenant. Authentication MUST be via tenant-scoped JWT including a branch ownership claim (e.g., branch_id or tenant_id). Requests lacking proper tenant/branch claim MUST be rejected with 403. Calls that would create a new Branch MUST be rejected.
+- FR-002: MCP MUST expose create and update APIs for Product scoped to a merchant branch/location context.
+- FR-003: API MUST validate that branchId exists and belongs to the requesting tenant when a branch id is supplied. Authentication MUST be via tenant-scoped JWT including a branch ownership claim (e.g., branch_id or tenant_id). Requests lacking proper tenant/branch claim MUST be rejected with 403.
 - FR-004: API MUST return standard HTTP status codes: 201 on create, 200 on update, 400 on validation errors, 404 for missing parent resources, 409 for business conflicts, 412 for precondition failures (optimistic locking). Updates SHOULD accept an If-Match (ETag) header or a version field and return 412 Precondition Failed when the client's expected version does not match the current resource.
 - FR-005: Persistent fields: id, branchId, locationId (for product), createdAt, updatedAt, active flag.
 - FR-006: API MUST support idempotent create. Support both an Idempotency-Key header (server-side deduplication by header) and an optional client-supplied UUID in the request body. The server should treat requests with the same Idempotency-Key or client-supplied id as the same operation and return the original resource on retries. Return 409 only for business conflicts that are not idempotent retries.
 - FR-007: Auditing: user/agent identity and request metadata recorded for create/update actions.
 - FR-008: Updates MUST support partial updates via PATCH for MerchantLocation and Product; PUT (full replace) optional.
+- FR-009: MCP branch and product creation MUST default new records to `active = false`; lookup/update tools MUST search active and inactive records.
+- FR-010: MCP product image ingestion MUST accept either `imageBase64` or `imageFilePath` plus content type, and MAY accept `cropX`, `cropY`, `cropWidth`, and `cropHeight` for server-side JPEG/PNG cropping before upload.
+- FR-011: MCP image ingestion MUST use the same private object-storage, object-key persistence, MIME validation, size validation, and signed retrieval behavior as the REST product image API.
 ### Key Entities
 
 - MerchantBranch (existing)
 - MerchantLocation: id, branchId, name, address fields, geolocation (lat/long), googlePlaceId, active, createdAt, updatedAt
-- Product: id, branchId, locationId, name, description, priceMinor (integer), currency, active, createdAt, updatedAt
+- Product: id, branchId, locationId if applicable, name, description, priceMinor/decimal price, currency or merchant-inherited currency, active, image object key, createdAt, updatedAt
 
 ## Success Criteria (mandatory)
 
 - SC-001: Agents can create a MerchantLocation and Product and receive a persistent id within one request cycle (end-to-end success measured by 201 + read-back verification).
 - SC-002: 95% of valid create/update requests complete within acceptable latency for agent workflows (user-facing "near-instant").
 - SC-003: All created/updated resources include audit metadata (creator id, timestamp).
-- SC-004: Attempts to create resources that would implicitly create a new Branch are rejected with a clear error.
+- SC-004: MCP-created branches/products are inactive by default and can be reviewed before becoming visible in buyer-facing views.
 
 ## Assumptions
 
-- The requestor will supply a valid existing branchId; no branch creation via these APIs.
+- Agents normally supply a valid existing branchId; helper tools may create missing placeholder branches by name, but those branches remain inactive until reviewed.
 - Authentication/authorization is provided by existing MCP infrastructure; endpoints will enforce tenant/branch ownership rules.
 - Prices are represented as minor units (integer) and currency is ISO-4217 code.
 - Backwards compatibility: existing merchant/branch data model remains unchanged.
@@ -88,3 +103,6 @@ Acceptance Scenarios:
 - Q: Authorization/tenant enforcement → A: Require tenant-scoped JWT with branch claim (A) - enforces tenant isolation and least privilege
 - Q: Conflict resolution for concurrent updates → A: Optimistic locking (B) - use If-Match/ETag or version precondition, return 412 on mismatch
 
+### Session 2026-04-23
+- Q: Can MCP tools create branches/products during catalog ingestion? → A: Yes, helper tools can create missing records by name, but created records default to inactive.
+- Q: How should MCP product image upload work? → A: Accept base64 bytes or a server-readable image file path, with optional crop coordinates, then upload through the same object-storage path as the REST product image API.
