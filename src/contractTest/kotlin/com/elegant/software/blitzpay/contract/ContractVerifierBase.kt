@@ -12,6 +12,7 @@ import com.elegant.software.blitzpay.payments.push.persistence.ProcessedWebhookE
 import com.elegant.software.blitzpay.payments.push.persistence.PushDeliveryAttemptRepository
 import com.elegant.software.blitzpay.storage.StorageService
 import com.elegant.software.blitzpay.support.ContractTestConfig
+import com.elegant.software.blitzpay.voice.api.VoiceGateway
 import jakarta.persistence.EntityManager
 import org.springframework.context.annotation.Import
 import com.elegant.software.blitzpay.payments.truelayer.api.PaymentRequested
@@ -80,6 +81,9 @@ abstract class ContractVerifierBase {
 
     @MockitoBean
     protected lateinit var storageService: StorageService
+
+    @MockitoBean
+    protected lateinit var voiceGateway: VoiceGateway
 
     @MockitoBean
     protected lateinit var entityManager: EntityManager
