@@ -24,6 +24,26 @@ class MerchantRegistrationService(
     private val log = LoggerFactory.getLogger(MerchantRegistrationService::class.java)
 
     fun register(request: RegisterMerchantRequest): MerchantApplication {
+        return saveRegistration(
+            request = request,
+            action = "register_direct",
+            activateDirectly = true
+        )
+    }
+
+    fun registerDraft(request: RegisterMerchantRequest): MerchantApplication {
+        return saveRegistration(
+            request = request,
+            action = "register_draft",
+            activateDirectly = false
+        )
+    }
+
+    private fun saveRegistration(
+        request: RegisterMerchantRequest,
+        action: String,
+        activateDirectly: Boolean
+    ): MerchantApplication {
         val registrationNumber = request.businessProfile.registrationNumber
         val duplicateExists = merchantApplicationRepository.existsByBusinessProfileRegistrationNumberAndStatusIn(
             registrationNumber,
@@ -51,7 +71,11 @@ class MerchantRegistrationService(
                 phoneNumber = request.primaryContact.phoneNumber
             )
         )
-        application.registerDirect(now)
+        if (activateDirectly) {
+            application.registerDirect(now)
+        } else {
+            application.lastUpdatedAt = now
+        }
 
         val saved = merchantApplicationRepository.save(application)
         merchantAuditTrail.record(
@@ -59,13 +83,13 @@ class MerchantRegistrationService(
                 applicationId = saved.id,
                 applicationReference = saved.applicationReference,
                 actorId = SYSTEM_ACTOR,
-                action = "register_direct",
+                action = action,
                 status = saved.status,
                 occurredAt = now
             )
         )
-        merchantObservabilitySupport.recordSuccess("register_direct", saved.status)
-        log.info("Merchant registered directly: ref={} status={}", saved.applicationReference, saved.status)
+        merchantObservabilitySupport.recordSuccess(action, saved.status)
+        log.info("Merchant registration saved: action={} ref={} status={}", action, saved.applicationReference, saved.status)
         return saved
     }
 

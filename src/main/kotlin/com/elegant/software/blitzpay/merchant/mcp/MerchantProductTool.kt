@@ -66,7 +66,7 @@ class MerchantProductTools(
                 cropHeight = cropHeight
             )
         )
-        return merchantProductService.updateStatus(UUID.fromString(merchantId), pId, "INACTIVE")
+        return merchantProductService.markInactive(UUID.fromString(merchantId), pId)
     }
 
     // --- MCP helper tools for ID lookup/creation by name ---
@@ -106,7 +106,7 @@ class MerchantProductTools(
         val generatedContactEmail = contactEmail?.trim()?.takeIf { it.isNotEmpty() }
             ?: "${merchantName.lowercase().replace(Regex("[^a-z0-9]+"), ".").trim('.')}.merchant@example.com"
 
-        val created = merchantRegistrationService.register(
+        val created = merchantRegistrationService.registerDraft(
             RegisterMerchantRequest(
                 businessProfile = MerchantBusinessProfileRequest(
                     legalBusinessName = merchantName,
@@ -131,7 +131,7 @@ class MerchantProductTools(
         description = "Get branch ID by branch name and merchant ID"
     )
     fun getBranchIdByName(merchantId: String, branchName: String): String {
-        return merchantBranchService.findByName(UUID.fromString(merchantId), branchName)?.id?.toString()
+        return merchantBranchService.findByNameIncludingInactive(UUID.fromString(merchantId), branchName)?.id?.toString()
             ?: throw IllegalArgumentException("Branch not found with name: $branchName")
     }
 
@@ -178,7 +178,7 @@ class MerchantProductTools(
         description = "Get product ID by product name, merchant ID, and branch ID"
     )
     fun getProductIdByName(merchantId: String, branchId: String, productName: String): String {
-        return merchantProductService.findByName(
+        return merchantProductService.findByNameIncludingInactive(
             UUID.fromString(merchantId),
             UUID.fromString(branchId),
             productName
@@ -232,7 +232,7 @@ class MerchantProductTools(
                     ),
                     image
                 )
-                merchantProductService.updateStatus(mId, existing.productId, "INACTIVE")
+                merchantProductService.markInactive(mId, existing.productId)
             }
             return existing.productId.toString()
         }
@@ -245,7 +245,8 @@ class MerchantProductTools(
                 unitPrice = BigDecimal(unitPrice),
                 description = description
             ),
-            image
+            image,
+            active = false
         ).productId.toString()
     }
 
@@ -344,7 +345,8 @@ class MerchantProductTools(
         if (existingBranch == null) {
             merchantBranchService.create(
                 merchantId,
-                CreateBranchRequest(name = defaultBranchName)
+                CreateBranchRequest(name = defaultBranchName),
+                active = false
             )
         }
     }

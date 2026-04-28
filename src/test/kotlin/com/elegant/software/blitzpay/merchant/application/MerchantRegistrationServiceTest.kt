@@ -55,6 +55,18 @@ class MerchantRegistrationServiceTest {
     }
 
     @Test
+    fun `registerDraft creates a DRAFT merchant when no duplicate exists`() {
+        whenever(repository.existsByBusinessProfileRegistrationNumberAndStatusIn(any(), any()))
+            .thenReturn(false)
+        whenever(repository.save(any<com.elegant.software.blitzpay.merchant.domain.MerchantApplication>())).thenAnswer { it.arguments[0] }
+
+        val result = service.registerDraft(validRequest)
+
+        assertEquals(MerchantOnboardingStatus.DRAFT, result.status)
+        assertEquals(null, result.submittedAt)
+    }
+
+    @Test
     fun `register rejects duplicate active registration number`() {
         whenever(repository.existsByBusinessProfileRegistrationNumberAndStatusIn(any(), any()))
             .thenReturn(true)
