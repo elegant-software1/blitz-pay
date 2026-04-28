@@ -3,7 +3,7 @@ info:
   title: OpenAPI definition
   version: v0
 servers:
-- url: http://localhost:50029
+- url: http://localhost:50015
   description: Generated server url
 tags:
 - name: Geofence
@@ -1055,6 +1055,8 @@ components:
           type: string
         active:
           type: boolean
+        status:
+          type: string
         createdAt:
           type: string
           format: date-time
@@ -1067,6 +1069,7 @@ components:
       - createdAt
       - name
       - productId
+      - status
       - unitPrice
       - updatedAt
     SetMerchantLocationRequest:
@@ -1213,6 +1216,8 @@ components:
           format: date-time
         imageUrl:
           type: string
+        status:
+          type: string
         createdAt:
           type: string
           format: date-time
@@ -1226,6 +1231,7 @@ components:
       - id
       - merchantId
       - name
+      - status
       - updatedAt
     UpdateBranchRequest:
       type: object

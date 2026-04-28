@@ -39,6 +39,9 @@ class MerchantBranch(
     @Column(nullable = false)
     var active: Boolean = true,
 
+    @Column(nullable = false, length = 32)
+    var status: String = "INACTIVE",
+
     @Column(name = "address_line1")
     var addressLine1: String? = null,
 

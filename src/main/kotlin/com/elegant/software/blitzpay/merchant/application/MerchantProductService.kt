@@ -74,6 +74,28 @@ class MerchantProductService(
         return product.toResponse()
     }
 
+    @Transactional(readOnly = true)
+    fun findByName(merchantId: UUID, merchantBranchId: UUID, productName: String): ProductResponse? {
+        requireMerchantExists(merchantId)
+        enableTenantFilter(merchantId)
+        return productRepository.findByNameAndMerchantApplicationIdAndMerchantBranchIdAndActiveTrue(
+            productName,
+            merchantId,
+            merchantBranchId
+        )?.toResponse()
+    }
+
+    @Transactional(readOnly = true)
+    fun findByNameIncludingInactive(merchantId: UUID, merchantBranchId: UUID, productName: String): ProductResponse? {
+        requireMerchantExists(merchantId)
+        enableTenantFilter(merchantId)
+        return productRepository.findByNameAndMerchantApplicationIdAndMerchantBranchId(
+            productName,
+            merchantId,
+            merchantBranchId
+        )?.toResponse()
+    }
+
     fun update(merchantId: UUID, productId: UUID, request: UpdateProductRequest, image: ProductImageUpload? = null): ProductResponse {
         requireMerchantExists(merchantId)
         validateProductFields(request.name, request.description, request.unitPrice)
@@ -119,6 +141,17 @@ class MerchantProductService(
         product.deactivate()
         productRepository.save(product)
         log.info("Product deactivated: id={} merchant={}", productId, merchantId)
+    }
+
+    fun updateStatus(merchantId: UUID, productId: UUID, status: String): ProductResponse {
+        require(status.isNotBlank()) { "status must not be blank" }
+        requireMerchantExists(merchantId)
+        enableTenantFilter(merchantId)
+        val product = productRepository.findById(productId)
+            .orElseThrow { NoSuchElementException("Product not found: $productId") }
+        product.status = status
+        product.updatedAt = java.time.Instant.now()
+        return productRepository.save(product).toResponse()
     }
 
     private fun requireMerchantExists(merchantId: UUID) {
@@ -167,6 +200,7 @@ class MerchantProductService(
         unitPrice = unitPrice,
         imageUrl = signedImageUrl(imageStorageKey),
         active = active,
+        status = status,
         createdAt = createdAt,
         updatedAt = updatedAt
     )

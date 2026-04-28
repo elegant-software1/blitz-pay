@@ -63,6 +63,7 @@ data class BranchResponse(
     val placeEnrichmentStatus: String?,
     val placeEnrichedAt: Instant?,
     val imageUrl: String?,
+    val status: String,
     val createdAt: Instant,
     val updatedAt: Instant,
 )

@@ -74,6 +74,10 @@ class MerchantRegistrationService(
         merchantApplicationRepository.findById(merchantId)
             .orElseThrow { NoSuchElementException("Merchant application not found: $merchantId") }
 
+    @Transactional(readOnly = true)
+    fun findByName(name: String): MerchantApplication? =
+        merchantApplicationRepository.findByBusinessProfileLegalBusinessName(name)
+
     companion object {
         private const val SYSTEM_ACTOR = "system"
         private val ACTIVE_STATUSES = setOf(
