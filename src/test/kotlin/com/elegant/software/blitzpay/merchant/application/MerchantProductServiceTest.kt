@@ -88,6 +88,17 @@ class MerchantProductServiceTest {
     }
 
     @Test
+    fun `create can persist inactive products`() {
+        val request = CreateProductRequest(name = "Hidden Sample", branchId = branchId, unitPrice = BigDecimal("2.00"))
+        whenever(productRepository.save(any<MerchantProduct>())).thenAnswer { it.arguments[0] }
+
+        val response = service.create(merchantId, request, active = false)
+
+        assertEquals(false, response.active)
+        assertEquals("INACTIVE", response.status)
+    }
+
+    @Test
     fun `create rejects negative price`() {
         val request = CreateProductRequest(name = "Invalid", branchId = branchId, unitPrice = BigDecimal("-1.00"))
 

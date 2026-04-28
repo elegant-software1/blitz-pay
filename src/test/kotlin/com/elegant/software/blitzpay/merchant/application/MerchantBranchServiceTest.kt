@@ -63,6 +63,22 @@ class MerchantBranchServiceTest {
     }
 
     @Test
+    fun `create can persist inactive branch`() {
+        val merchantId = UUID.randomUUID()
+        whenever(merchantRepository.existsById(merchantId)).thenReturn(true)
+        whenever(branchRepository.save(any<MerchantBranch>())).thenAnswer { it.arguments[0] }
+
+        val response = service.create(
+            merchantId,
+            CreateBranchRequest(name = "MCP Branch"),
+            active = false
+        )
+
+        assertEquals(false, response.active)
+        assertEquals("INACTIVE", response.status)
+    }
+
+    @Test
     fun `update branch stores contact and activation state`() {
         val merchantId = UUID.randomUUID()
         val branch = MerchantBranch(

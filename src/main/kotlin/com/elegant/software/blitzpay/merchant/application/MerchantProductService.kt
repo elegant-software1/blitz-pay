@@ -27,7 +27,12 @@ class MerchantProductService(
 ) {
     private val log = LoggerFactory.getLogger(MerchantProductService::class.java)
 
-    fun create(merchantId: UUID, request: CreateProductRequest, image: ProductImageUpload? = null): ProductResponse {
+    fun create(
+        merchantId: UUID,
+        request: CreateProductRequest,
+        image: ProductImageUpload? = null,
+        active: Boolean = true
+    ): ProductResponse {
         requireMerchantExists(merchantId)
         validateProductFields(request.name, request.description, request.unitPrice)
         val productId = UUID.randomUUID()
@@ -44,6 +49,7 @@ class MerchantProductService(
             description = ProductImagePolicy.normalizeDescription(request.description),
             unitPrice = request.unitPrice,
             imageStorageKey = imageStorageKey,
+            active = active,
             merchantBranchId = request.branchId
         )
         val saved = try {
@@ -150,6 +156,17 @@ class MerchantProductService(
         val product = productRepository.findById(productId)
             .orElseThrow { NoSuchElementException("Product not found: $productId") }
         product.status = status
+        product.updatedAt = java.time.Instant.now()
+        return productRepository.save(product).toResponse()
+    }
+
+    fun markInactive(merchantId: UUID, productId: UUID): ProductResponse {
+        requireMerchantExists(merchantId)
+        enableTenantFilter(merchantId)
+        val product = productRepository.findById(productId)
+            .orElseThrow { NoSuchElementException("Product not found: $productId") }
+        product.active = false
+        product.status = "INACTIVE"
         product.updatedAt = java.time.Instant.now()
         return productRepository.save(product).toResponse()
     }

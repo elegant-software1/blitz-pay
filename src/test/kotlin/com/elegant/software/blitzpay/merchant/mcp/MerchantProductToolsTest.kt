@@ -9,6 +9,7 @@ import com.elegant.software.blitzpay.merchant.application.MerchantProductService
 import com.elegant.software.blitzpay.merchant.application.MerchantRegistrationService
 import com.elegant.software.blitzpay.merchant.domain.BusinessProfile
 import com.elegant.software.blitzpay.merchant.domain.MerchantApplication
+import com.elegant.software.blitzpay.merchant.domain.MerchantOnboardingStatus
 import com.elegant.software.blitzpay.merchant.domain.PrimaryContact
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -42,13 +43,13 @@ class MerchantProductToolsTest {
         whenever(merchantRegistrationService.findByName("Cafe Blue"))
             .thenReturn(merchant(merchantId, "Cafe Blue", "REG-001"))
         whenever(merchantBranchService.findByNameIncludingInactive(merchantId, "Main Branch")).thenReturn(null)
-        whenever(merchantBranchService.create(eq(merchantId), any<CreateBranchRequest>())).thenReturn(branchResponse(merchantId))
+        whenever(merchantBranchService.create(eq(merchantId), any<CreateBranchRequest>(), eq(false))).thenReturn(branchResponse(merchantId))
 
         val result = tools.getOrCreateMerchantId(merchantName = "Cafe Blue")
 
         assertEquals(merchantId.toString(), result)
-        verify(merchantRegistrationService, never()).register(any())
-        verify(merchantBranchService).create(eq(merchantId), any<CreateBranchRequest>())
+        verify(merchantRegistrationService, never()).registerDraft(any())
+        verify(merchantBranchService).create(eq(merchantId), any<CreateBranchRequest>(), eq(false))
     }
 
     @Test
@@ -56,15 +57,15 @@ class MerchantProductToolsTest {
         whenever(merchantRegistrationService.findByName("Fresh Mart")).thenReturn(null)
 
         val merchantId = UUID.randomUUID()
-        whenever(merchantRegistrationService.register(any())).thenReturn(merchant(merchantId, "Fresh Mart", "REG-NEW"))
+        whenever(merchantRegistrationService.registerDraft(any())).thenReturn(merchant(merchantId, "Fresh Mart", "REG-NEW"))
         whenever(merchantBranchService.findByNameIncludingInactive(merchantId, "Main Branch")).thenReturn(null)
-        whenever(merchantBranchService.create(eq(merchantId), any<CreateBranchRequest>())).thenReturn(branchResponse(merchantId))
+        whenever(merchantBranchService.create(eq(merchantId), any<CreateBranchRequest>(), eq(false))).thenReturn(branchResponse(merchantId))
 
         val result = tools.getOrCreateMerchantId(merchantName = "Fresh Mart")
 
         assertEquals(merchantId.toString(), result)
         val registerCaptor = argumentCaptor<com.elegant.software.blitzpay.merchant.api.RegisterMerchantRequest>()
-        verify(merchantRegistrationService).register(registerCaptor.capture())
+        verify(merchantRegistrationService).registerDraft(registerCaptor.capture())
         assertEquals("Fresh Mart", registerCaptor.firstValue.businessProfile.legalBusinessName)
         assertEquals("Main Branch", captureBranchName())
     }
@@ -74,7 +75,7 @@ class MerchantProductToolsTest {
         val merchantId = UUID.randomUUID()
         val branchId = UUID.randomUUID()
         whenever(merchantProductService.findByNameIncludingInactive(merchantId, branchId, "Latte")).thenReturn(null)
-        whenever(merchantProductService.create(eq(merchantId), any<CreateProductRequest>(), isNull())).thenReturn(
+        whenever(merchantProductService.create(eq(merchantId), any<CreateProductRequest>(), isNull(), eq(false))).thenReturn(
             ProductResponse(
                 productId = UUID.randomUUID(),
                 branchId = branchId,
@@ -82,7 +83,7 @@ class MerchantProductToolsTest {
                 description = null,
                 unitPrice = BigDecimal("3.50"),
                 imageUrl = null,
-                active = true,
+                active = false,
                 status = "INACTIVE",
                 createdAt = Instant.now(),
                 updatedAt = Instant.now()
@@ -99,12 +100,12 @@ class MerchantProductToolsTest {
             imageContentType = "  "
         )
 
-        verify(merchantProductService).create(eq(merchantId), any<CreateProductRequest>(), isNull())
+        verify(merchantProductService).create(eq(merchantId), any<CreateProductRequest>(), isNull(), eq(false))
     }
 
     private fun captureBranchName(): String {
         val requestCaptor = argumentCaptor<CreateBranchRequest>()
-        verify(merchantBranchService).create(any(), requestCaptor.capture())
+        verify(merchantBranchService).create(any(), requestCaptor.capture(), eq(false))
         return requestCaptor.firstValue.name
     }
 
@@ -123,7 +124,8 @@ class MerchantProductToolsTest {
                 fullName = "Owner",
                 email = "owner@example.com",
                 phoneNumber = "000"
-            )
+            ),
+            status = MerchantOnboardingStatus.DRAFT
         )
 
     private fun branchResponse(merchantId: UUID): BranchResponse =

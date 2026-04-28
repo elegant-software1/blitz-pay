@@ -19,7 +19,7 @@ class MerchantBranchService(
     private val storageService: StorageService,
 ) {
 
-    fun create(merchantId: UUID, request: CreateBranchRequest): BranchResponse {
+    fun create(merchantId: UUID, request: CreateBranchRequest, active: Boolean = true): BranchResponse {
         require(request.name.isNotBlank()) { "Branch name must not be blank" }
         require((request.latitude == null) == (request.longitude == null)) {
             "latitude and longitude must both be provided or both be omitted"
@@ -29,6 +29,7 @@ class MerchantBranchService(
         val branch = MerchantBranch(
             merchantApplicationId = merchantId,
             name = request.name,
+            active = active,
             addressLine1 = request.addressLine1,
             addressLine2 = request.addressLine2,
             city = request.city,
@@ -110,7 +111,8 @@ class MerchantBranchService(
                     longitude = longitude,
                     geofenceRadiusMeters = geofenceRadiusMeters,
                     googlePlaceId = googlePlaceId
-                )
+                ),
+                active = false
             )
         }
 
@@ -140,6 +142,7 @@ class MerchantBranchService(
             geofenceRadiusMeters = geofenceRadiusMeters,
             googlePlaceId = googlePlaceId
         )
+        existing.active = false
         existing.status = "INACTIVE"
         return merchantBranchRepository.save(existing).toResponse()
     }
