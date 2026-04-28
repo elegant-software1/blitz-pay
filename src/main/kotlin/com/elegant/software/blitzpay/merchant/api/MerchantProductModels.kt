@@ -26,6 +26,7 @@ data class ProductResponse(
     val unitPrice: BigDecimal,
     val imageUrl: String?,
     val active: Boolean,
+    val status: String,
     val createdAt: Instant,
     val updatedAt: Instant
 )

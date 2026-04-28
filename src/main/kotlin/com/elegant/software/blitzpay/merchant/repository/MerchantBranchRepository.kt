@@ -2,8 +2,10 @@ package com.elegant.software.blitzpay.merchant.repository
 
 import com.elegant.software.blitzpay.merchant.domain.MerchantBranch
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 interface MerchantBranchRepository : JpaRepository<MerchantBranch, UUID> {
@@ -15,6 +17,11 @@ interface MerchantBranchRepository : JpaRepository<MerchantBranch, UUID> {
     fun findAllByMerchantApplicationIdInAndActiveTrue(merchantIds: Collection<UUID>): List<MerchantBranch>
     fun findByIdAndActiveTrue(id: UUID): MerchantBranch?
     fun existsByMerchantApplicationIdAndIdAndActiveTrue(merchantApplicationId: UUID, id: UUID): Boolean
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE MerchantBranch b SET b.status = :status WHERE b.id = :id")
+    fun updateStatus(@Param("id") id: UUID, @Param("status") status: String): Int
 
     @Query(
         value = """

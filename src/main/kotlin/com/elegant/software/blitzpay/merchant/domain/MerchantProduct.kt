@@ -41,6 +41,9 @@ class MerchantProduct(
     @Column(nullable = false)
     var active: Boolean = true,
 
+    @Column(nullable = false, length = 32)
+    var status: String = "INACTIVE",
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now(),
 

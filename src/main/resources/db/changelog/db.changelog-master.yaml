@@ -41,3 +41,7 @@ databaseChangeLog:
       file: db/changelog/20260424-004-rename-proximity-user-token.sql
   - include:
       file: db/changelog/20260425-001-push-payment-voice-context.sql
+  - include:
+      file: db/changelog/20260428-001-branch-approval-status.sql
+  - include:
+      file: db/changelog/20260428-002-product-approval-status.sql

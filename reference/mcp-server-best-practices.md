@@ -97,6 +97,8 @@ Do not rely on clients inferring meaning from implementation details.
 ## 7. Operational Best Practices
 
 - Validate all inputs at the server boundary.
+- Keep MCP tool classes thin. They should delegate business logic and persistence orchestration to application services.
+- Do not inject or call JPA repositories directly from MCP tools. Repository access belongs in the service layer so authorization, validation, transactions, and audit behavior stay centralized.
 - Return clear, structured errors for invalid params, missing arguments, and internal failures.
 - Log tool invocations and failures without leaking secrets or personal data.
 - Define timeouts for network and database access.
