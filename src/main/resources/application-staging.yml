@@ -6,3 +6,8 @@ management:
   endpoint:
     env:
       show-values: ALWAYS
+
+blitzpay:
+  voice:
+    whisper:
+      base-url: http://whisper:8000/v1
