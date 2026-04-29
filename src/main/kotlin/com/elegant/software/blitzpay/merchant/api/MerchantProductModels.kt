@@ -8,14 +8,18 @@ data class CreateProductRequest(
     val name: String,
     val branchId: java.util.UUID,
     val unitPrice: BigDecimal,
-    val description: String? = null
+    val description: String? = null,
+    val categoryId: UUID? = null,
+    val productCode: Long? = null
 )
 
 data class UpdateProductRequest(
     val name: String,
     val branchId: java.util.UUID,
     val unitPrice: BigDecimal,
-    val description: String? = null
+    val description: String? = null,
+    val categoryId: UUID? = null,
+    val productCode: Long? = null
 )
 
 data class ProductResponse(
@@ -27,6 +31,9 @@ data class ProductResponse(
     val imageUrl: String?,
     val active: Boolean,
     val status: String,
+    val categoryId: UUID? = null,
+    val categoryName: String? = null,
+    val productCode: Long? = null,
     val createdAt: Instant,
     val updatedAt: Instant
 )

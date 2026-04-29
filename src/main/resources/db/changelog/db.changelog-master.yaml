@@ -41,3 +41,9 @@ databaseChangeLog:
       file: db/changelog/20260424-004-rename-proximity-user-token.sql
   - include:
       file: db/changelog/20260425-001-push-payment-voice-context.sql
+  - include:
+      file: db/changelog/20260428-003-merchant-product-categories.sql
+  - include:
+      file: db/changelog/20260428-004-merchant-products-add-category-fk.sql
+  - include:
+      file: db/changelog/20260429-001-product-code-support.sql

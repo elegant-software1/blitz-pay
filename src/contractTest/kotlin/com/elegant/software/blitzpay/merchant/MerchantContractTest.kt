@@ -321,14 +321,25 @@ class MerchantContractTest : ContractVerifierBase() {
     fun `POST product accepts multipart product fields and image`() {
         val merchantId = UUID.randomUUID()
         val branchId = UUID.randomUUID()
+        val categoryId = UUID.randomUUID()
         whenever(merchantApplicationRepository.existsById(merchantId)).thenReturn(true)
         whenever(merchantBranchRepository.existsByMerchantApplicationIdAndIdAndActiveTrue(merchantId, branchId)).thenReturn(true)
+        whenever(merchantProductCategoryRepository.existsByIdAndMerchantApplicationId(categoryId, merchantId)).thenReturn(true)
+        whenever(merchantProductCategoryRepository.findByMerchantApplicationIdAndId(merchantId, categoryId)).thenReturn(
+            com.elegant.software.blitzpay.merchant.domain.MerchantProductCategory(
+                id = categoryId,
+                merchantApplicationId = merchantId,
+                name = "Drinks"
+            )
+        )
         whenever(merchantProductRepository.save(any<MerchantProduct>())).thenAnswer { it.arguments[0] }
         val multipart = MultipartBodyBuilder().apply {
             part("name", "Coffee Blend")
             part("branchId", branchId.toString())
             part("description", "**Medium roast**")
             part("unitPrice", "12.50")
+            part("categoryId", categoryId.toString())
+            part("productCode", "12")
             part("image", byteArrayOf(1, 2, 3))
                 .filename("coffee.webp")
                 .contentType(MediaType("image", "webp"))
@@ -343,6 +354,9 @@ class MerchantContractTest : ContractVerifierBase() {
             .expectBody()
             .jsonPath("$.name").isEqualTo("Coffee Blend")
             .jsonPath("$.description").isEqualTo("**Medium roast**")
+            .jsonPath("$.categoryId").isEqualTo(categoryId.toString())
+            .jsonPath("$.categoryName").isEqualTo("Drinks")
+            .jsonPath("$.productCode").isEqualTo(12)
             .jsonPath("$.imageUrl").exists()
     }
 
@@ -350,6 +364,7 @@ class MerchantContractTest : ContractVerifierBase() {
     fun `GET products returns signed image url and description`() {
         val merchantId = UUID.randomUUID()
         val branchId = UUID.randomUUID()
+        val categoryId = UUID.randomUUID()
         whenever(merchantApplicationRepository.existsById(merchantId)).thenReturn(true)
         whenever(entityManager.unwrap(Session::class.java)).thenReturn(session)
         whenever(session.enableFilter(any())).thenReturn(hibernateFilter)
@@ -357,6 +372,13 @@ class MerchantContractTest : ContractVerifierBase() {
         whenever(entityManager.createNativeQuery(any<String>())).thenReturn(nativeQuery)
         whenever(nativeQuery.setParameter(any<String>(), any())).thenReturn(nativeQuery)
         whenever(nativeQuery.singleResult).thenReturn(merchantId.toString())
+        whenever(merchantProductCategoryRepository.findByMerchantApplicationIdAndId(merchantId, categoryId)).thenReturn(
+            com.elegant.software.blitzpay.merchant.domain.MerchantProductCategory(
+                id = categoryId,
+                merchantApplicationId = merchantId,
+                name = "Drinks"
+            )
+        )
         whenever(merchantProductRepository.findAllByActiveTrueAndMerchantBranchId(branchId)).thenReturn(
             listOf(
                 MerchantProduct(
@@ -365,7 +387,9 @@ class MerchantContractTest : ContractVerifierBase() {
                     name = "Coffee Blend",
                     description = "**Medium roast**",
                     unitPrice = BigDecimal("12.50"),
-                    imageStorageKey = "merchants/$merchantId/branches/$branchId/products/product/image.webp"
+                    imageStorageKey = "merchants/$merchantId/branches/$branchId/products/product/image.webp",
+                    productCategoryId = categoryId,
+                    productCode = 12L
                 )
             )
         )
@@ -376,6 +400,9 @@ class MerchantContractTest : ContractVerifierBase() {
             .expectStatus().isOk
             .expectBody()
             .jsonPath("$[0].description").isEqualTo("**Medium roast**")
+            .jsonPath("$[0].categoryId").isEqualTo(categoryId.toString())
+            .jsonPath("$[0].categoryName").isEqualTo("Drinks")
+            .jsonPath("$[0].productCode").isEqualTo(12)
             .jsonPath("$[0].imageUrl").isEqualTo("https://signed.example/merchants/$merchantId/branches/$branchId/products/product/image.webp")
     }
 

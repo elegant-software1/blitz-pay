@@ -29,6 +29,17 @@ interface MerchantProductRepository : JpaRepository<MerchantProduct, UUID> {
 
     fun findAllByActiveTrue(): List<MerchantProduct>
     fun findAllByActiveTrueAndMerchantBranchId(merchantBranchId: UUID): List<MerchantProduct>
+    fun findAllByActiveTrueAndMerchantBranchIdAndProductCategoryId(
+        merchantBranchId: UUID,
+        productCategoryId: UUID
+    ): List<MerchantProduct>
+
+    fun findByMerchantBranchIdAndProductCode(merchantBranchId: UUID, productCode: Long): MerchantProduct?
+
+    @Query("select max(p.productCode) from MerchantProduct p where p.merchantBranchId = :merchantBranchId")
+    fun findMaxProductCodeByMerchantBranchId(@Param("merchantBranchId") merchantBranchId: UUID): Long?
+
+    fun countByProductCategoryIdAndActiveTrue(productCategoryId: UUID): Long
     fun findByIdAndActiveTrue(id: UUID): Optional<MerchantProduct>
     fun findByIdAndActiveTrueAndMerchantBranchId(id: UUID, merchantBranchId: UUID): Optional<MerchantProduct>
 }

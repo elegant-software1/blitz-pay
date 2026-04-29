@@ -3,13 +3,15 @@ info:
   title: OpenAPI definition
   version: v0
 servers:
-- url: http://localhost:50015
+- url: http://localhost:65047
   description: Generated server url
 tags:
 - name: Geofence
   description: Geofence region discovery for mobile clients
 - name: Voice
   description: Voice query processing for authenticated mobile clients
+- name: Merchant Product Categories
+  description: Manage merchant product categories
 - name: Invoices
   description: EU-standard ZUGFeRD / Factur-X invoice generation
 - name: Merchant Onboarding
@@ -96,6 +98,10 @@ paths:
                   type: string
                 description:
                   type: string
+                categoryId:
+                  type: string
+                productCode:
+                  type: string
                 image:
                   type: string
                   format: binary
@@ -130,6 +136,59 @@ paths:
           format: uuid
       - name: branchId
         in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+  /{version}/merchants/{merchantId}/product-categories/{categoryId}:
+    put:
+      tags:
+      - Merchant Product Categories
+      summary: Rename a product category
+      operationId: rename
+      parameters:
+      - name: merchantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: categoryId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenameProductCategoryRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProductCategoryResponse"
+    delete:
+      tags:
+      - Merchant Product Categories
+      summary: Delete a product category
+      operationId: delete
+      parameters:
+      - name: merchantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: categoryId
+        in: path
         required: true
         schema:
           type: string
@@ -295,7 +354,7 @@ paths:
       tags:
       - Merchant Branches
       summary: Soft-delete a branch (sets active = false)
-      operationId: delete
+      operationId: delete_1
       parameters:
       - name: merchantId
         in: path
@@ -560,6 +619,12 @@ paths:
         schema:
           type: string
           format: uuid
+      - name: categoryId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
       responses:
         "200":
           description: OK
@@ -595,6 +660,10 @@ paths:
                   type: string
                 description:
                   type: string
+                categoryId:
+                  type: string
+                productCode:
+                  type: string
                 image:
                   type: string
                   format: binary
@@ -609,12 +678,59 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ProductResponse"
+  /{version}/merchants/{merchantId}/product-categories:
+    get:
+      tags:
+      - Merchant Product Categories
+      summary: List all product categories
+      operationId: list_1
+      parameters:
+      - name: merchantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductCategoryResponse"
+    post:
+      tags:
+      - Merchant Product Categories
+      summary: Create a product category
+      operationId: create_1
+      parameters:
+      - name: merchantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductCategoryRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProductCategoryResponse"
   /{version}/merchants/{merchantId}/branches:
     get:
       tags:
       - Merchant Branches
       summary: List active branches for a merchant
-      operationId: list_1
+      operationId: list_2
       parameters:
       - name: merchantId
         in: path
@@ -635,7 +751,7 @@ paths:
       tags:
       - Merchant Branches
       summary: Create a new branch under a merchant
-      operationId: create_1
+      operationId: create_2
       parameters:
       - name: merchantId
         in: path
@@ -710,7 +826,7 @@ paths:
       - Merchant Onboarding
       summary: "Register a new merchant (directly ACTIVE, duplicate registration number\
         \ rejected with 409)"
-      operationId: create_2
+      operationId: create_3
       requestBody:
         content:
           application/json:
@@ -1057,6 +1173,14 @@ components:
           type: boolean
         status:
           type: string
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+        productCode:
+          type: integer
+          format: int64
         createdAt:
           type: string
           format: date-time
@@ -1071,6 +1195,32 @@ components:
       - productId
       - status
       - unitPrice
+      - updatedAt
+    RenameProductCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+      - name
+    ProductCategoryResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+      - createdAt
+      - id
+      - name
       - updatedAt
     SetMerchantLocationRequest:
       type: object
@@ -1629,6 +1779,13 @@ components:
         productId:
           type: string
           format: uuid
+    CreateProductCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+      - name
     CreateBranchRequest:
       type: object
       properties:

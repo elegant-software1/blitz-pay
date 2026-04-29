@@ -2,6 +2,7 @@ package com.elegant.software.blitzpay.merchant.mcp
 
 import com.elegant.software.blitzpay.merchant.api.*
 import com.elegant.software.blitzpay.merchant.application.MerchantBranchService
+import com.elegant.software.blitzpay.merchant.application.MerchantProductCategoryService
 import com.elegant.software.blitzpay.merchant.application.MerchantProductService
 import com.elegant.software.blitzpay.merchant.application.MerchantRegistrationService
 import com.elegant.software.blitzpay.merchant.application.ProductImagePolicy
@@ -24,7 +25,8 @@ import java.util.*
 class MerchantProductTools(
     private val merchantProductService: MerchantProductService,
     private val merchantBranchService: MerchantBranchService,
-    private val merchantRegistrationService: MerchantRegistrationService
+    private val merchantRegistrationService: MerchantRegistrationService,
+    private val merchantProductCategoryService: MerchantProductCategoryService
 ) {
 
     @McpTool(
@@ -38,6 +40,8 @@ class MerchantProductTools(
         name: String,
         unitPrice: String,
         description: String? = null,
+        categoryId: String? = null,
+        productCode: String? = null,
         imageBase64: String? = null,
         imageFilePath: String? = null,
         imageContentType: String? = null,
@@ -47,14 +51,16 @@ class MerchantProductTools(
         cropHeight: Int? = null
     ): ProductResponse {
         val pId = UUID.fromString(productId)
-        merchantProductService.update(
+        merchantProductService.updateIncludingInactive(
             merchantId = UUID.fromString(merchantId),
             productId = pId,
             request = UpdateProductRequest(
                 name = name,
                 branchId = UUID.fromString(branchId),
                 unitPrice = BigDecimal(unitPrice),
-                description = description
+                description = description,
+                categoryId = categoryId?.trim()?.takeIf { it.isNotEmpty() }?.let(UUID::fromString),
+                productCode = productCode?.trim()?.takeIf { it.isNotEmpty() }?.toLong()
             ),
             image = productImageUploadOrNull(
                 imageBase64 = imageBase64,
@@ -174,6 +180,35 @@ class MerchantProductTools(
     }
 
     @McpTool(
+        name = "category_id_by_name",
+        description = "Get product category ID by name for a given merchant"
+    )
+    fun getCategoryIdByName(merchantId: String, categoryName: String): String {
+        return merchantProductCategoryService.findByName(UUID.fromString(merchantId), categoryName)?.id?.toString()
+            ?: throw IllegalArgumentException("Category not found: $categoryName")
+    }
+
+    @McpTool(
+        name = "category_id_by_name_or_create",
+        description = "Get or create a product category ID by name for a given merchant"
+    )
+    fun getOrCreateCategoryId(merchantId: String, categoryName: String): String {
+        val mId = UUID.fromString(merchantId)
+        return merchantProductCategoryService.findByName(mId, categoryName)?.id?.toString()
+            ?: merchantProductCategoryService.create(
+                mId,
+                CreateProductCategoryRequest(name = categoryName)
+            ).id.toString()
+    }
+
+    @McpTool(
+        name = "merchant_list_product_categories",
+        description = "List all product categories for a merchant"
+    )
+    fun listProductCategories(merchantId: String): List<ProductCategoryResponse> =
+        merchantProductCategoryService.list(UUID.fromString(merchantId))
+
+    @McpTool(
         name = "product_id_by_name",
         description = "Get product ID by product name, merchant ID, and branch ID"
     )
@@ -195,6 +230,7 @@ class MerchantProductTools(
         productName: String,
         unitPrice: String,
         description: String? = null,
+        productCode: String? = null,
         imageBase64: String? = null,
         imageFilePath: String? = null,
         imageContentType: String? = null,
@@ -228,7 +264,8 @@ class MerchantProductTools(
                         name = productName,
                         branchId = bId,
                         unitPrice = BigDecimal(unitPrice),
-                        description = description ?: existing.description
+                        description = description ?: existing.description,
+                        productCode = productCode?.trim()?.takeIf { it.isNotEmpty() }?.toLong()
                     ),
                     image
                 )
@@ -243,7 +280,8 @@ class MerchantProductTools(
                 name = productName,
                 branchId = bId,
                 unitPrice = BigDecimal(unitPrice),
-                description = description
+                description = description,
+                productCode = productCode?.trim()?.takeIf { it.isNotEmpty() }?.toLong()
             ),
             image,
             active = false
