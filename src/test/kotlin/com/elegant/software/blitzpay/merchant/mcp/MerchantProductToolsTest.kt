@@ -2,9 +2,12 @@ package com.elegant.software.blitzpay.merchant.mcp
 
 import com.elegant.software.blitzpay.merchant.api.BranchResponse
 import com.elegant.software.blitzpay.merchant.api.CreateBranchRequest
+import com.elegant.software.blitzpay.merchant.api.CreateProductCategoryRequest
 import com.elegant.software.blitzpay.merchant.api.CreateProductRequest
+import com.elegant.software.blitzpay.merchant.api.ProductCategoryResponse
 import com.elegant.software.blitzpay.merchant.api.ProductResponse
 import com.elegant.software.blitzpay.merchant.application.MerchantBranchService
+import com.elegant.software.blitzpay.merchant.application.MerchantProductCategoryService
 import com.elegant.software.blitzpay.merchant.application.MerchantProductService
 import com.elegant.software.blitzpay.merchant.application.MerchantRegistrationService
 import com.elegant.software.blitzpay.merchant.domain.BusinessProfile
@@ -30,11 +33,13 @@ class MerchantProductToolsTest {
     private val merchantProductService = mock<MerchantProductService>()
     private val merchantBranchService = mock<MerchantBranchService>()
     private val merchantRegistrationService = mock<MerchantRegistrationService>()
+    private val merchantProductCategoryService = mock<MerchantProductCategoryService>()
 
     private val tools = MerchantProductTools(
         merchantProductService = merchantProductService,
         merchantBranchService = merchantBranchService,
-        merchantRegistrationService = merchantRegistrationService
+        merchantRegistrationService = merchantRegistrationService,
+        merchantProductCategoryService = merchantProductCategoryService
     )
 
     @Test
@@ -101,6 +106,203 @@ class MerchantProductToolsTest {
         )
 
         verify(merchantProductService).create(eq(merchantId), any<CreateProductRequest>(), isNull(), eq(false))
+    }
+
+    @Test
+    fun `getCategoryIdByName returns id when found`() {
+        val merchantId = UUID.randomUUID()
+        val categoryId = UUID.randomUUID()
+        whenever(merchantProductCategoryService.findByName(merchantId, "Drinks")).thenReturn(
+            ProductCategoryResponse(categoryId, "Drinks", Instant.now(), Instant.now())
+        )
+
+        val result = tools.getCategoryIdByName(merchantId.toString(), "Drinks")
+
+        assertEquals(categoryId.toString(), result)
+    }
+
+    @Test
+    fun `getCategoryIdByName throws when not found`() {
+        val merchantId = UUID.randomUUID()
+        whenever(merchantProductCategoryService.findByName(merchantId, "Missing")).thenReturn(null)
+
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            tools.getCategoryIdByName(merchantId.toString(), "Missing")
+        }
+    }
+
+    @Test
+    fun `getOrCreateCategoryId returns existing id`() {
+        val merchantId = UUID.randomUUID()
+        val categoryId = UUID.randomUUID()
+        whenever(merchantProductCategoryService.findByName(merchantId, "Drinks")).thenReturn(
+            ProductCategoryResponse(categoryId, "Drinks", Instant.now(), Instant.now())
+        )
+
+        val result = tools.getOrCreateCategoryId(merchantId.toString(), "Drinks")
+
+        assertEquals(categoryId.toString(), result)
+    }
+
+    @Test
+    fun `getOrCreateCategoryId creates category when absent`() {
+        val merchantId = UUID.randomUUID()
+        val categoryId = UUID.randomUUID()
+        whenever(merchantProductCategoryService.findByName(merchantId, "Wine")).thenReturn(null)
+        whenever(
+            merchantProductCategoryService.create(eq(merchantId), any<CreateProductCategoryRequest>())
+        ).thenReturn(ProductCategoryResponse(categoryId, "Wine", Instant.now(), Instant.now()))
+
+        val result = tools.getOrCreateCategoryId(merchantId.toString(), "Wine")
+
+        assertEquals(categoryId.toString(), result)
+        verify(merchantProductCategoryService).create(eq(merchantId), any<CreateProductCategoryRequest>())
+    }
+
+    @Test
+    fun `listProductCategories delegates to service`() {
+        val merchantId = UUID.randomUUID()
+        val categories = listOf(ProductCategoryResponse(UUID.randomUUID(), "Snacks", Instant.now(), Instant.now()))
+        whenever(merchantProductCategoryService.list(merchantId)).thenReturn(categories)
+
+        val result = tools.listProductCategories(merchantId.toString())
+
+        assertEquals(categories, result)
+    }
+
+    @Test
+    fun `updateProduct passes categoryId through to request`() {
+        val merchantId = UUID.randomUUID()
+        val productId = UUID.randomUUID()
+        val branchId = UUID.randomUUID()
+        val categoryId = UUID.randomUUID()
+        whenever(merchantProductService.updateIncludingInactive(eq(merchantId), eq(productId), any(), isNull())).thenReturn(
+            ProductResponse(
+                productId = productId,
+                branchId = branchId,
+                name = "Latte",
+                description = null,
+                unitPrice = BigDecimal("3.50"),
+                imageUrl = null,
+                active = true,
+                status = "ACTIVE",
+                categoryId = categoryId,
+                categoryName = "Drinks",
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+        whenever(merchantProductService.markInactive(merchantId, productId)).thenReturn(
+            ProductResponse(
+                productId = productId,
+                branchId = branchId,
+                name = "Latte",
+                description = null,
+                unitPrice = BigDecimal("3.50"),
+                imageUrl = null,
+                active = false,
+                status = "INACTIVE",
+                categoryId = categoryId,
+                categoryName = "Drinks",
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+
+        tools.updateProduct(
+            merchantId = merchantId.toString(),
+            productId = productId.toString(),
+            branchId = branchId.toString(),
+            name = "Latte",
+            unitPrice = "3.50",
+            categoryId = categoryId.toString(),
+            productCode = "12"
+        )
+
+        val captor = argumentCaptor<com.elegant.software.blitzpay.merchant.api.UpdateProductRequest>()
+        verify(merchantProductService).updateIncludingInactive(eq(merchantId), eq(productId), captor.capture(), isNull())
+        assertEquals(categoryId, captor.firstValue.categoryId)
+        assertEquals(12L, captor.firstValue.productCode)
+    }
+
+    @Test
+    fun `updateProduct uses inactive aware service path`() {
+        val merchantId = UUID.randomUUID()
+        val productId = UUID.randomUUID()
+        val branchId = UUID.randomUUID()
+        whenever(merchantProductService.updateIncludingInactive(eq(merchantId), eq(productId), any(), isNull())).thenReturn(
+            ProductResponse(
+                productId = productId,
+                branchId = branchId,
+                name = "Latte",
+                description = null,
+                unitPrice = BigDecimal("3.50"),
+                imageUrl = null,
+                active = false,
+                status = "INACTIVE",
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+        whenever(merchantProductService.markInactive(merchantId, productId)).thenReturn(
+            ProductResponse(
+                productId = productId,
+                branchId = branchId,
+                name = "Latte",
+                description = null,
+                unitPrice = BigDecimal("3.50"),
+                imageUrl = null,
+                active = false,
+                status = "INACTIVE",
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+
+        tools.updateProduct(
+            merchantId = merchantId.toString(),
+            productId = productId.toString(),
+            branchId = branchId.toString(),
+            name = "Latte",
+            unitPrice = "3.50"
+        )
+
+        verify(merchantProductService).updateIncludingInactive(eq(merchantId), eq(productId), any(), isNull())
+        verify(merchantProductService, never()).update(eq(merchantId), eq(productId), any(), isNull())
+    }
+
+    @Test
+    fun `getOrCreateProductId passes product code into create request`() {
+        val merchantId = UUID.randomUUID()
+        val branchId = UUID.randomUUID()
+        whenever(merchantProductService.findByNameIncludingInactive(merchantId, branchId, "Latte")).thenReturn(null)
+        whenever(merchantProductService.create(eq(merchantId), any<CreateProductRequest>(), isNull(), eq(false))).thenReturn(
+            ProductResponse(
+                productId = UUID.randomUUID(),
+                branchId = branchId,
+                name = "Latte",
+                description = null,
+                unitPrice = BigDecimal("3.50"),
+                imageUrl = null,
+                active = false,
+                status = "INACTIVE",
+                productCode = 12L,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+
+        tools.getOrCreateProductId(
+            merchantId = merchantId.toString(),
+            branchId = branchId.toString(),
+            productName = "Latte",
+            unitPrice = "3.50",
+            productCode = "12"
+        )
+
+        val captor = argumentCaptor<CreateProductRequest>()
+        verify(merchantProductService).create(eq(merchantId), captor.capture(), isNull(), eq(false))
+        assertEquals(12L, captor.firstValue.productCode)
     }
 
     private fun captureBranchName(): String {

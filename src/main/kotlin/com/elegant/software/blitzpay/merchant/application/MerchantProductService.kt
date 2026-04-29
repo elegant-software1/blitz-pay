@@ -5,8 +5,9 @@ import com.elegant.software.blitzpay.merchant.api.ProductResponse
 import com.elegant.software.blitzpay.merchant.api.UpdateProductRequest
 import com.elegant.software.blitzpay.merchant.domain.MerchantProduct
 import com.elegant.software.blitzpay.merchant.repository.MerchantApplicationRepository
-import com.elegant.software.blitzpay.merchant.repository.MerchantProductRepository
 import com.elegant.software.blitzpay.merchant.repository.MerchantBranchRepository
+import com.elegant.software.blitzpay.merchant.repository.MerchantProductCategoryRepository
+import com.elegant.software.blitzpay.merchant.repository.MerchantProductRepository
 import com.elegant.software.blitzpay.storage.StorageService
 import jakarta.persistence.EntityManager
 import org.hibernate.Session
@@ -20,6 +21,7 @@ import java.util.UUID
 @Transactional
 class MerchantProductService(
     private val productRepository: MerchantProductRepository,
+    private val categoryRepository: MerchantProductCategoryRepository,
     private val merchantApplicationRepository: MerchantApplicationRepository,
     private val merchantBranchRepository: MerchantBranchRepository,
     private val entityManager: EntityManager,
@@ -35,13 +37,31 @@ class MerchantProductService(
     ): ProductResponse {
         requireMerchantExists(merchantId)
         validateProductFields(request.name, request.description, request.unitPrice)
-        val productId = UUID.randomUUID()
-        val imageStorageKey = image?.let { uploadImage(merchantId, productId, it, request.branchId) }
-
-        require(merchantBranchRepository.existsByMerchantApplicationIdAndIdAndActiveTrue(merchantId, request.branchId)) {
-            "Merchant branch not found or does not belong to merchant: ${request.branchId}"
+        validateBranch(merchantId, request.branchId)
+        val categoryId = validateCategory(merchantId, request.categoryId)
+        val resolvedProductCode = resolveProductCode(request.branchId, request.productCode)
+        val existingByCode = request.productCode?.let {
+            productRepository.findByMerchantBranchIdAndProductCode(request.branchId, it)
         }
 
+        if (existingByCode != null) {
+            return updateExistingProduct(
+                merchantId = merchantId,
+                product = existingByCode,
+                request = UpdateProductRequest(
+                    name = request.name,
+                    branchId = request.branchId,
+                    unitPrice = request.unitPrice,
+                    description = request.description,
+                    categoryId = categoryId,
+                    productCode = resolvedProductCode
+                ),
+                image = image
+            )
+        }
+
+        val productId = UUID.randomUUID()
+        val imageStorageKey = image?.let { uploadImage(merchantId, productId, it, request.branchId) }
         val product = MerchantProduct(
             id = productId,
             merchantApplicationId = merchantId,
@@ -50,7 +70,9 @@ class MerchantProductService(
             unitPrice = request.unitPrice,
             imageStorageKey = imageStorageKey,
             active = active,
-            merchantBranchId = request.branchId
+            merchantBranchId = request.branchId,
+            productCategoryId = categoryId,
+            productCode = resolvedProductCode
         )
         val saved = try {
             productRepository.save(product)
@@ -63,10 +85,15 @@ class MerchantProductService(
     }
 
     @Transactional(readOnly = true)
-    fun list(merchantId: UUID, merchantBranchId: UUID): List<ProductResponse> {
+    fun list(merchantId: UUID, merchantBranchId: UUID, categoryId: UUID? = null): List<ProductResponse> {
         requireMerchantExists(merchantId)
         enableTenantFilter(merchantId)
-        val products = productRepository.findAllByActiveTrueAndMerchantBranchId(merchantBranchId)
+        val products = if (categoryId == null) {
+            productRepository.findAllByActiveTrueAndMerchantBranchId(merchantBranchId)
+        } else {
+            validateCategory(merchantId, categoryId)
+            productRepository.findAllByActiveTrueAndMerchantBranchIdAndProductCategoryId(merchantBranchId, categoryId)
+        }
             .map { it.toResponse() }
         return products
     }
@@ -105,37 +132,49 @@ class MerchantProductService(
     fun update(merchantId: UUID, productId: UUID, request: UpdateProductRequest, image: ProductImageUpload? = null): ProductResponse {
         requireMerchantExists(merchantId)
         validateProductFields(request.name, request.description, request.unitPrice)
+        validateBranch(merchantId, request.branchId)
 
         enableTenantFilter(merchantId)
         val product = productRepository.findByIdAndActiveTrue(productId)
             .orElseThrow { NoSuchElementException("Product not found: $productId") }
+        return updateResolvedProduct(merchantId, productId, request, image, product)
+    }
 
-        val previousImageStorageKey = product.imageStorageKey
-        val newImageStorageKey = image?.let { uploadImage(merchantId, productId, it, request.branchId) } ?: previousImageStorageKey
-        product.update(
-            name = request.name.trim(),
-            description = ProductImagePolicy.normalizeDescription(request.description),
-            unitPrice = request.unitPrice,
-            imageStorageKey = newImageStorageKey
+    fun updateIncludingInactive(
+        merchantId: UUID,
+        productId: UUID,
+        request: UpdateProductRequest,
+        image: ProductImageUpload? = null
+    ): ProductResponse {
+        requireMerchantExists(merchantId)
+        validateProductFields(request.name, request.description, request.unitPrice)
+        validateBranch(merchantId, request.branchId)
+
+        enableTenantFilter(merchantId)
+        val product = productRepository.findById(productId)
+            .orElseThrow { NoSuchElementException("Product not found: $productId") }
+        return updateResolvedProduct(merchantId, productId, request, image, product)
+    }
+
+    private fun updateResolvedProduct(
+        merchantId: UUID,
+        productId: UUID,
+        request: UpdateProductRequest,
+        image: ProductImageUpload?,
+        product: MerchantProduct
+    ): ProductResponse {
+        val categoryId = validateCategory(merchantId, request.categoryId)
+        val targetProduct = request.productCode?.let { code ->
+            productRepository.findByMerchantBranchIdAndProductCode(request.branchId, code)
+                ?.takeUnless { it.id == product.id }
+        } ?: product
+
+        return updateExistingProduct(
+            merchantId = merchantId,
+            product = targetProduct,
+            request = request.copy(categoryId = categoryId),
+            image = image
         )
-        // handle branch reassignment if provided
-        val newBranchId = request.branchId
-        if (newBranchId != product.merchantBranchId) {
-            require(merchantBranchRepository.existsByMerchantApplicationIdAndIdAndActiveTrue(merchantId, newBranchId)) {
-                "Merchant branch not found or does not belong to merchant: $newBranchId"
-            }
-            product.merchantBranchId = newBranchId
-        }
-        val saved = try {
-            productRepository.save(product)
-        } catch (ex: RuntimeException) {
-            if (newImageStorageKey != null && newImageStorageKey != previousImageStorageKey) {
-                cleanupUploadedImage(newImageStorageKey)
-            }
-            throw ex
-        }
-        log.info("Product updated: id={} merchant={}", productId, merchantId)
-        return saved.toResponse()
     }
 
     fun deactivate(merchantId: UUID, productId: UUID, merchantBranchId: UUID) {
@@ -191,6 +230,60 @@ class MerchantProductService(
         require(unitPrice >= BigDecimal.ZERO) { "unitPrice must be >= 0" }
     }
 
+    private fun validateBranch(merchantId: UUID, branchId: UUID) {
+        require(merchantBranchRepository.existsByMerchantApplicationIdAndIdAndActiveTrue(merchantId, branchId)) {
+            "Merchant branch not found or does not belong to merchant: $branchId"
+        }
+    }
+
+    private fun validateCategory(merchantId: UUID, categoryId: UUID?): UUID? {
+        if (categoryId == null) return null
+        require(categoryRepository.existsByIdAndMerchantApplicationId(categoryId, merchantId)) {
+            "Category not found or does not belong to merchant: $categoryId"
+        }
+        return categoryId
+    }
+
+    private fun resolveProductCode(branchId: UUID, requestedProductCode: Long?): Long {
+        requestedProductCode?.let {
+            require(it > 0) { "productCode must be > 0" }
+            return it
+        }
+        return (productRepository.findMaxProductCodeByMerchantBranchId(branchId) ?: 0L) + 1L
+    }
+
+    private fun updateExistingProduct(
+        merchantId: UUID,
+        product: MerchantProduct,
+        request: UpdateProductRequest,
+        image: ProductImageUpload?
+    ): ProductResponse {
+        val previousImageStorageKey = product.imageStorageKey
+        val newImageStorageKey = image?.let { uploadImage(merchantId, product.id, it, request.branchId) } ?: previousImageStorageKey
+        val resolvedProductCode = resolveProductCode(request.branchId, request.productCode)
+        product.update(
+            name = request.name.trim(),
+            description = ProductImagePolicy.normalizeDescription(request.description),
+            unitPrice = request.unitPrice,
+            imageStorageKey = newImageStorageKey,
+            productCategoryId = request.categoryId,
+            productCode = resolvedProductCode
+        )
+        if (request.branchId != product.merchantBranchId) {
+            product.merchantBranchId = request.branchId
+        }
+        val saved = try {
+            productRepository.save(product)
+        } catch (ex: RuntimeException) {
+            if (newImageStorageKey != null && newImageStorageKey != previousImageStorageKey) {
+                cleanupUploadedImage(newImageStorageKey)
+            }
+            throw ex
+        }
+        log.info("Product updated: id={} merchant={}", saved.id, merchantId)
+        return saved.toResponse()
+    }
+
     private fun uploadImage(merchantId: UUID, productId: UUID, image: ProductImageUpload, merchantBranchId: UUID): String {
         val storageKey = "merchants/$merchantId/branches/$merchantBranchId/products/$productId/image.${image.extension}"
         storageService.upload(storageKey, image.contentType, image.bytes)
@@ -210,6 +303,11 @@ class MerchantProductService(
         }
 
     private fun MerchantProduct.toResponse() = ProductResponse(
+        categoryId = productCategoryId,
+        categoryName = productCategoryId?.let {
+            categoryRepository.findByMerchantApplicationIdAndId(merchantApplicationId, it)?.name
+        },
+        productCode = productCode,
         productId = id,
         branchId = merchantBranchId!!,
         name = name,

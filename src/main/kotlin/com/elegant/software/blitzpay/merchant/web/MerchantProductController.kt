@@ -36,6 +36,8 @@ class MerchantProductController(
         @RequestPart("branchId") branchId: String,
         @RequestPart("unitPrice") unitPrice: String,
         @RequestPart("description", required = false) description: String?,
+        @RequestPart("categoryId", required = false) categoryId: String?,
+        @RequestPart("productCode", required = false) productCode: String?,
         @RequestPart("image", required = false) image: FilePart?
     ): Mono<ResponseEntity<ProductResponse>> =
         image.toProductImageUpload()
@@ -47,7 +49,9 @@ class MerchantProductController(
                             name = name,
                             branchId = UUID.fromString(branchId),
                             unitPrice = BigDecimal(unitPrice),
-                            description = description
+                            description = description,
+                            categoryId = categoryId.toUuidOrNull(),
+                            productCode = productCode.toLongOrNull()
                         ),
                         upload.orElse(null)
                     )
@@ -57,8 +61,12 @@ class MerchantProductController(
 
     @Operation(summary = "List all active products for the merchant")
     @GetMapping
-    fun list(@PathVariable merchantId: UUID, @RequestParam("branchId") branchId: UUID): Mono<ResponseEntity<List<ProductResponse>>> =
-        Mono.fromCallable { merchantProductService.list(merchantId, branchId) }
+    fun list(
+        @PathVariable merchantId: UUID,
+        @RequestParam("branchId") branchId: UUID,
+        @RequestParam("categoryId", required = false) categoryId: UUID?
+    ): Mono<ResponseEntity<List<ProductResponse>>> =
+        Mono.fromCallable { merchantProductService.list(merchantId, branchId, categoryId) }
             .subscribeOn(Schedulers.boundedElastic())
             .map { ResponseEntity.ok(it) }
 
@@ -82,6 +90,8 @@ class MerchantProductController(
         @RequestPart("branchId") branchId: String,
         @RequestPart("unitPrice") unitPrice: String,
         @RequestPart("description", required = false) description: String?,
+        @RequestPart("categoryId", required = false) categoryId: String?,
+        @RequestPart("productCode", required = false) productCode: String?,
         @RequestPart("image", required = false) image: FilePart?
     ): Mono<ResponseEntity<ProductResponse>> =
         image.toProductImageUpload()
@@ -94,7 +104,9 @@ class MerchantProductController(
                             name = name,
                             branchId = UUID.fromString(branchId),
                             unitPrice = BigDecimal(unitPrice),
-                            description = description
+                            description = description,
+                            categoryId = categoryId.toUuidOrNull(),
+                            productCode = productCode.toLongOrNull()
                         ),
                         upload.orElse(null)
                     )
@@ -140,4 +152,10 @@ class MerchantProductController(
     @ExceptionHandler(IllegalStateException::class)
     fun storageUnavailable(ex: IllegalStateException): ResponseEntity<ProductErrorResponse> =
         ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ProductErrorResponse(ex.message ?: "Product storage unavailable"))
+
+    private fun String?.toUuidOrNull(): UUID? =
+        this?.trim()?.takeIf { it.isNotEmpty() }?.let(UUID::fromString)
+
+    private fun String?.toLongOrNull(): Long? =
+        this?.trim()?.takeIf { it.isNotEmpty() }?.toLong()
 }

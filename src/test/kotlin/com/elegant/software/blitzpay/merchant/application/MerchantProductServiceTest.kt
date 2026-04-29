@@ -2,8 +2,10 @@ package com.elegant.software.blitzpay.merchant.application
 
 import com.elegant.software.blitzpay.merchant.api.CreateProductRequest
 import com.elegant.software.blitzpay.merchant.api.UpdateProductRequest
+import com.elegant.software.blitzpay.merchant.domain.MerchantProductCategory
 import com.elegant.software.blitzpay.merchant.domain.MerchantProduct
 import com.elegant.software.blitzpay.merchant.repository.MerchantApplicationRepository
+import com.elegant.software.blitzpay.merchant.repository.MerchantProductCategoryRepository
 import com.elegant.software.blitzpay.merchant.repository.MerchantProductRepository
 import com.elegant.software.blitzpay.storage.StorageService
 import jakarta.persistence.EntityManager
@@ -28,6 +30,7 @@ import kotlin.test.assertTrue
 class MerchantProductServiceTest {
 
     private val productRepository = mock<MerchantProductRepository>()
+    private val categoryRepository = mock<MerchantProductCategoryRepository>()
     private val merchantApplicationRepository = mock<MerchantApplicationRepository>()
     private val merchantBranchRepository = mock<com.elegant.software.blitzpay.merchant.repository.MerchantBranchRepository>()
     private val entityManager = mock<EntityManager>()
@@ -38,6 +41,7 @@ class MerchantProductServiceTest {
 
     private val service = MerchantProductService(
         productRepository,
+        categoryRepository,
         merchantApplicationRepository,
         merchantBranchRepository,
         entityManager,
@@ -45,6 +49,7 @@ class MerchantProductServiceTest {
     )
     private val merchantId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
+    private val categoryId = UUID.randomUUID()
 
     @BeforeEach
     fun setUp() {
@@ -56,6 +61,7 @@ class MerchantProductServiceTest {
         whenever(nativeQuery.singleResult).thenReturn(merchantId.toString())
         whenever(merchantApplicationRepository.existsById(merchantId)).thenReturn(true)
         whenever(merchantBranchRepository.existsByMerchantApplicationIdAndIdAndActiveTrue(merchantId, branchId)).thenReturn(true)
+        whenever(categoryRepository.existsByIdAndMerchantApplicationId(categoryId, merchantId)).thenReturn(true)
         whenever(storageService.presignDownload(any(), any())).thenAnswer { "https://signed.example/${it.arguments[0]}" }
     }
 
@@ -74,6 +80,7 @@ class MerchantProductServiceTest {
         assertEquals("Coffee Blend", response.name)
         assertEquals("**Medium roast**", response.description)
         assertEquals(BigDecimal("12.50"), response.unitPrice)
+        assertEquals(1L, response.productCode)
         assertTrue(response.active)
     }
 
@@ -147,6 +154,96 @@ class MerchantProductServiceTest {
     }
 
     @Test
+    fun `create with valid category sets it on product`() {
+        val request = CreateProductRequest(
+            name = "Coffee",
+            branchId = branchId,
+            unitPrice = BigDecimal("10.00"),
+            categoryId = categoryId
+        )
+        whenever(productRepository.save(any<MerchantProduct>())).thenAnswer { it.arguments[0] }
+        whenever(categoryRepository.findByMerchantApplicationIdAndId(merchantId, categoryId)).thenReturn(
+            MerchantProductCategory(merchantApplicationId = merchantId, id = categoryId, name = "Drinks")
+        )
+
+        val response = service.create(merchantId, request)
+
+        assertEquals(categoryId, response.categoryId)
+        assertEquals("Drinks", response.categoryName)
+    }
+
+    @Test
+    fun `create keeps caller supplied product code`() {
+        val request = CreateProductRequest(
+            name = "Coffee",
+            branchId = branchId,
+            unitPrice = BigDecimal("10.00"),
+            productCode = 12L
+        )
+        whenever(productRepository.save(any<MerchantProduct>())).thenAnswer { it.arguments[0] }
+
+        val response = service.create(merchantId, request)
+
+        assertEquals(12L, response.productCode)
+    }
+
+    @Test
+    fun `create auto generates next highest product code within branch`() {
+        val request = CreateProductRequest(
+            name = "Coffee",
+            branchId = branchId,
+            unitPrice = BigDecimal("10.00")
+        )
+        whenever(productRepository.findMaxProductCodeByMerchantBranchId(branchId)).thenReturn(12L)
+        whenever(productRepository.save(any<MerchantProduct>())).thenAnswer { it.arguments[0] }
+
+        val response = service.create(merchantId, request)
+
+        assertEquals(13L, response.productCode)
+    }
+
+    @Test
+    fun `create with duplicate branch product code updates existing product instead of creating duplicate`() {
+        val existing = MerchantProduct(
+            merchantApplicationId = merchantId,
+            merchantBranchId = branchId,
+            name = "Existing Coffee",
+            unitPrice = BigDecimal("9.00"),
+            productCode = 12L
+        )
+        val request = CreateProductRequest(
+            name = "Renamed Coffee",
+            branchId = branchId,
+            unitPrice = BigDecimal("10.00"),
+            description = "updated",
+            productCode = 12L
+        )
+        whenever(productRepository.findByMerchantBranchIdAndProductCode(branchId, 12L)).thenReturn(existing)
+        whenever(productRepository.save(any<MerchantProduct>())).thenAnswer { it.arguments[0] }
+
+        val response = service.create(merchantId, request)
+
+        assertEquals(existing.id, response.productId)
+        assertEquals("Renamed Coffee", response.name)
+        verify(productRepository, never()).findMaxProductCodeByMerchantBranchId(branchId)
+    }
+
+    @Test
+    fun `create with category from different merchant throws`() {
+        whenever(categoryRepository.existsByIdAndMerchantApplicationId(categoryId, merchantId)).thenReturn(false)
+        val request = CreateProductRequest(
+            name = "Coffee",
+            branchId = branchId,
+            unitPrice = BigDecimal("10.00"),
+            categoryId = categoryId
+        )
+
+        assertFailsWith<IllegalArgumentException> {
+            service.create(merchantId, request)
+        }
+    }
+
+    @Test
     fun `update uploads valid image and replaces object key`() {
         val productId = UUID.randomUUID()
         val product = MerchantProduct(
@@ -177,6 +274,91 @@ class MerchantProductServiceTest {
         assertEquals("Coffee Updated", response.name)
         assertEquals("_Updated_", response.description)
         assertEquals("https://signed.example/merchants/$merchantId/branches/$branchId/products/$productId/image.png", response.imageUrl)
+    }
+
+    @Test
+    fun `update with valid category changes assignment`() {
+        val productId = UUID.randomUUID()
+        val product = MerchantProduct(
+            id = productId,
+            merchantApplicationId = merchantId,
+            name = "Coffee",
+            unitPrice = BigDecimal("10.00"),
+            merchantBranchId = branchId
+        )
+        whenever(productRepository.findByIdAndActiveTrue(productId)).thenReturn(Optional.of(product))
+        whenever(productRepository.save(any<MerchantProduct>())).thenAnswer { it.arguments[0] }
+        whenever(categoryRepository.findByMerchantApplicationIdAndId(merchantId, categoryId)).thenReturn(
+            MerchantProductCategory(merchantApplicationId = merchantId, id = categoryId, name = "Drinks")
+        )
+
+        val response = service.update(
+            merchantId,
+            productId,
+            UpdateProductRequest(
+                name = "Coffee",
+                branchId = branchId,
+                unitPrice = BigDecimal("10.00"),
+                categoryId = categoryId
+            )
+        )
+
+        assertEquals(categoryId, response.categoryId)
+        assertEquals("Drinks", response.categoryName)
+    }
+
+    @Test
+    fun `update with duplicate branch product code targets existing product`() {
+        val productId = UUID.randomUUID()
+        val targetProductId = UUID.randomUUID()
+        val source = MerchantProduct(
+            id = productId,
+            merchantApplicationId = merchantId,
+            name = "Source Coffee",
+            unitPrice = BigDecimal("10.00"),
+            merchantBranchId = branchId,
+            productCode = 9L
+        )
+        val target = MerchantProduct(
+            id = targetProductId,
+            merchantApplicationId = merchantId,
+            name = "Target Coffee",
+            unitPrice = BigDecimal("11.00"),
+            merchantBranchId = branchId,
+            productCode = 12L
+        )
+        whenever(productRepository.findByIdAndActiveTrue(productId)).thenReturn(Optional.of(source))
+        whenever(productRepository.findByMerchantBranchIdAndProductCode(branchId, 12L)).thenReturn(target)
+        whenever(productRepository.save(any<MerchantProduct>())).thenAnswer { it.arguments[0] }
+
+        val response = service.update(
+            merchantId,
+            productId,
+            UpdateProductRequest(
+                name = "Updated Coffee",
+                branchId = branchId,
+                unitPrice = BigDecimal("12.00"),
+                productCode = 12L
+            )
+        )
+
+        assertEquals(targetProductId, response.productId)
+        assertEquals("Updated Coffee", response.name)
+        assertEquals(12L, response.productCode)
+    }
+
+    @Test
+    fun `create rejects non positive product code`() {
+        val request = CreateProductRequest(
+            name = "Coffee",
+            branchId = branchId,
+            unitPrice = BigDecimal("10.00"),
+            productCode = 0L
+        )
+
+        assertFailsWith<IllegalArgumentException> {
+            service.create(merchantId, request)
+        }
     }
 
     @Test
@@ -221,6 +403,45 @@ class MerchantProductServiceTest {
         val response = service.list(merchantId, branchId)
 
         assertEquals("https://signed.example/merchants/$merchantId/branches/$branchId/products/product/image.jpg", response.single().imageUrl)
+    }
+
+    @Test
+    fun `list with category filter uses category scoped repository method`() {
+        val product = MerchantProduct(
+            merchantApplicationId = merchantId,
+            name = "Coffee",
+            unitPrice = BigDecimal("10.00"),
+            merchantBranchId = branchId,
+            productCategoryId = categoryId
+        )
+        whenever(categoryRepository.findByMerchantApplicationIdAndId(merchantId, categoryId)).thenReturn(
+            MerchantProductCategory(merchantApplicationId = merchantId, id = categoryId, name = "Drinks")
+        )
+        whenever(productRepository.findAllByActiveTrueAndMerchantBranchIdAndProductCategoryId(branchId, categoryId))
+            .thenReturn(listOf(product))
+
+        val response = service.list(merchantId, branchId, categoryId)
+
+        assertEquals(1, response.size)
+        assertEquals("Drinks", response.single().categoryName)
+    }
+
+    @Test
+    fun `get returns null category fields when uncategorised`() {
+        val productId = UUID.randomUUID()
+        val product = MerchantProduct(
+            id = productId,
+            merchantApplicationId = merchantId,
+            name = "Coffee",
+            unitPrice = BigDecimal("10.00"),
+            merchantBranchId = branchId
+        )
+        whenever(productRepository.findByIdAndActiveTrueAndMerchantBranchId(productId, branchId)).thenReturn(Optional.of(product))
+
+        val response = service.get(merchantId, productId, branchId)
+
+        assertEquals(null, response.categoryId)
+        assertEquals(null, response.categoryName)
     }
 
     @Test

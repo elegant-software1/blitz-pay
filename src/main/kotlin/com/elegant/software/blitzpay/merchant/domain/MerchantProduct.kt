@@ -52,20 +52,37 @@ class MerchantProduct(
 
     @Column(name = "merchant_branch_id")
     var merchantBranchId: UUID? = null,
+
+    @Column(name = "product_category_id")
+    var productCategoryId: UUID? = null,
+
+    @Column(name = "product_code")
+    var productCode: Long? = null,
 ) {
     fun deactivate(at: Instant = Instant.now()) {
         active = false
         updatedAt = at
     }
 
-    fun update(name: String, description: String?, unitPrice: BigDecimal, imageStorageKey: String?, at: Instant = Instant.now()) {
+    fun update(
+        name: String,
+        description: String?,
+        unitPrice: BigDecimal,
+        imageStorageKey: String?,
+        productCategoryId: UUID? = this.productCategoryId,
+        productCode: Long? = this.productCode,
+        at: Instant = Instant.now()
+    ) {
         require(name.isNotBlank()) { "name must not be blank" }
         require(description == null || description.length <= 2_000) { "description must be <= 2000 characters" }
         require(unitPrice >= BigDecimal.ZERO) { "unitPrice must be >= 0" }
+        require(productCode == null || productCode > 0) { "productCode must be > 0" }
         this.name = name.trim()
         this.description = description?.trim()?.ifBlank { null }
         this.unitPrice = unitPrice
         this.imageStorageKey = imageStorageKey
+        this.productCategoryId = productCategoryId
+        this.productCode = productCode
         this.updatedAt = at
     }
 }
