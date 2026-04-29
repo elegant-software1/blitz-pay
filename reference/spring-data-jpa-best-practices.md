@@ -7,9 +7,9 @@ See `CONTRIBUTING.md` for the link to this document.
 
 ## Current State
 
-This project uses **Hibernate with `ddl-auto: update`** and PostgreSQL 16.
-There are currently no JPA entities or Spring Data repositories. When entities and
-repositories are added, follow the patterns in this document.
+This project uses **Hibernate with `ddl-auto: validate`**, **Liquibase** for schema changes,
+and PostgreSQL 16. JPA entities and Spring Data repositories must follow the patterns in this
+document.
 
 For schema migration strategy (moving away from `ddl-auto: update`), see
 `reference/liquibase-best-practices.md`.

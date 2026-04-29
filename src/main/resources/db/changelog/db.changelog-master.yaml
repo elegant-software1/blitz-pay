@@ -41,3 +41,5 @@ databaseChangeLog:
       file: db/changelog/20260424-004-rename-proximity-user-token.sql
   - include:
       file: db/changelog/20260425-001-push-payment-voice-context.sql
+  - include:
+      file: db/changelog/0001-add-invoice-tracking-tables.sql
