@@ -85,14 +85,18 @@ class MerchantProductService(
     }
 
     @Transactional(readOnly = true)
-    fun list(merchantId: UUID, merchantBranchId: UUID, categoryId: UUID? = null): List<ProductResponse> {
+    fun list(
+        merchantId: UUID,
+        merchantBranchId: UUID,
+        categoryId: UUID? = null
+    ): List<ProductResponse> {
         requireMerchantExists(merchantId)
         enableTenantFilter(merchantId)
         val products = if (categoryId == null) {
-            productRepository.findAllByActiveTrueAndMerchantBranchId(merchantBranchId)
+            productRepository.findAllByMerchantBranchId(merchantBranchId)
         } else {
             validateCategory(merchantId, categoryId)
-            productRepository.findAllByActiveTrueAndMerchantBranchIdAndProductCategoryId(merchantBranchId, categoryId)
+            productRepository.findAllByMerchantBranchIdAndProductCategoryId(merchantBranchId, categoryId)
         }
             .map { it.toResponse() }
         return products
@@ -102,7 +106,7 @@ class MerchantProductService(
     fun get(merchantId: UUID, productId: UUID, merchantBranchId: UUID): ProductResponse {
         requireMerchantExists(merchantId)
         enableTenantFilter(merchantId)
-        val product = productRepository.findByIdAndActiveTrueAndMerchantBranchId(productId, merchantBranchId)
+        val product = productRepository.findByIdAndMerchantBranchId(productId, merchantBranchId)
             .orElseThrow { NoSuchElementException("Product not found: $productId") }
         return product.toResponse()
     }
@@ -135,7 +139,7 @@ class MerchantProductService(
         validateBranch(merchantId, request.branchId)
 
         enableTenantFilter(merchantId)
-        val product = productRepository.findByIdAndActiveTrue(productId)
+        val product = productRepository.findByIdAndMerchantBranchId(productId, request.branchId)
             .orElseThrow { NoSuchElementException("Product not found: $productId") }
         return updateResolvedProduct(merchantId, productId, request, image, product)
     }

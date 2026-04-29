@@ -47,7 +47,7 @@ class MerchantBranchService(
     fun list(merchantId: UUID): List<BranchResponse> {
         requireMerchantExists(merchantId)
         return merchantBranchRepository
-            .findAllByMerchantApplicationIdAndActiveTrue(merchantId)
+            .findAllByMerchantApplicationId(merchantId)
             .map { it.toResponse() }
     }
 

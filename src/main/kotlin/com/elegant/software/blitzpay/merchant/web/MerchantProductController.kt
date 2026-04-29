@@ -59,7 +59,7 @@ class MerchantProductController(
             }
             .map { ResponseEntity.status(HttpStatus.CREATED).body(it) }
 
-    @Operation(summary = "List all active products for the merchant")
+    @Operation(summary = "List products for the merchant")
     @GetMapping
     fun list(
         @PathVariable merchantId: UUID,
@@ -70,7 +70,7 @@ class MerchantProductController(
             .subscribeOn(Schedulers.boundedElastic())
             .map { ResponseEntity.ok(it) }
 
-    @Operation(summary = "Get a single active product")
+    @Operation(summary = "Get a single product")
     @GetMapping("/{productId}")
     fun get(
         @PathVariable merchantId: UUID,

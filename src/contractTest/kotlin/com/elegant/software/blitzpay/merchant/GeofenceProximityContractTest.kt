@@ -53,6 +53,8 @@ class GeofenceProximityContractTest : ContractVerifierBase() {
     fun setupGeofenceContracts() {
         whenever(merchantApplicationRepository.findAllByStatus(MerchantOnboardingStatus.ACTIVE))
             .thenReturn(listOf(activeMerchant))
+        whenever(merchantApplicationRepository.findAllById(any<Set<UUID>>()))
+            .thenReturn(listOf(activeMerchant))
         whenever(merchantBranchRepository.findAllByActiveTrue()).thenReturn(listOf(activeBranch))
         whenever(merchantApplicationRepository.findById(merchantId)).thenReturn(Optional.of(activeMerchant))
         whenever(merchantBranchRepository.findById(branchId)).thenReturn(Optional.of(activeBranch))
@@ -221,11 +223,6 @@ class GeofenceProximityContractTest : ContractVerifierBase() {
 
     @Test
     fun `GET merchants nearby returns activeBranches per merchant`() {
-        whenever(merchantApplicationRepository.findNearby(any(), any(), any()))
-            .thenReturn(listOf(activeMerchant))
-        whenever(merchantBranchRepository.findAllByMerchantApplicationIdInAndActiveTrue(any()))
-            .thenReturn(listOf(activeBranch))
-
         webTestClient.get()
             .uri("/v1/merchants/nearby?lat=48.8566&lng=2.3522&radiusMeters=1000")
             .exchange()
@@ -237,12 +234,8 @@ class GeofenceProximityContractTest : ContractVerifierBase() {
     }
 
     @Test
-    fun `GET merchants nearby returns empty activeBranches when no active located branches`() {
-        whenever(merchantApplicationRepository.findNearby(any(), any(), any()))
-            .thenReturn(listOf(activeMerchant))
+    fun `GET merchants nearby returns empty merchants when no active located branches match radius`() {
         whenever(merchantBranchRepository.findAllByActiveTrue())
-            .thenReturn(emptyList())
-        whenever(merchantBranchRepository.findAllByMerchantApplicationIdInAndActiveTrue(any()))
             .thenReturn(emptyList())
 
         webTestClient.get()
@@ -250,8 +243,8 @@ class GeofenceProximityContractTest : ContractVerifierBase() {
             .exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$.merchants[0].activeBranches").isArray
-            .jsonPath("$.merchants[0].activeBranches").value<List<*>> { list -> assert(list.isEmpty()) }
+            .jsonPath("$.merchants").isArray
+            .jsonPath("$.merchants").value<List<*>> { list -> assert(list.isEmpty()) }
     }
 
     @Test
@@ -270,14 +263,10 @@ class GeofenceProximityContractTest : ContractVerifierBase() {
             status = MerchantOnboardingStatus.ACTIVE,
         )
 
-        whenever(merchantApplicationRepository.findNearby(any(), any(), any()))
-            .thenReturn(emptyList())
         whenever(merchantBranchRepository.findAllByActiveTrue())
             .thenReturn(listOf(activeBranch))
         whenever(merchantApplicationRepository.findAllById(any<Set<UUID>>()))
             .thenReturn(listOf(merchantWithoutLocation))
-        whenever(merchantBranchRepository.findAllByMerchantApplicationIdInAndActiveTrue(any()))
-            .thenReturn(listOf(activeBranch))
 
         webTestClient.get()
             .uri("/v1/merchants/nearby?lat=48.8600&lng=2.3400&radiusMeters=1000")

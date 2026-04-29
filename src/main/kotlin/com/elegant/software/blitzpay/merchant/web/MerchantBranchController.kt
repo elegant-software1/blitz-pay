@@ -35,7 +35,7 @@ class MerchantBranchController(private val merchantBranchService: MerchantBranch
     ): ResponseEntity<BranchResponse> =
         ResponseEntity.status(HttpStatus.CREATED).body(merchantBranchService.create(merchantId, request))
 
-    @Operation(summary = "List active branches for a merchant")
+    @Operation(summary = "List branches for a merchant")
     @GetMapping
     fun list(@PathVariable merchantId: UUID): ResponseEntity<List<BranchResponse>> =
         ResponseEntity.ok(merchantBranchService.list(merchantId))

@@ -83,6 +83,8 @@ class MerchantProduct(
         this.imageStorageKey = imageStorageKey
         this.productCategoryId = productCategoryId
         this.productCode = productCode
+        this.active = true
+        this.status = "ACTIVE"
         this.updatedAt = at
     }
 }

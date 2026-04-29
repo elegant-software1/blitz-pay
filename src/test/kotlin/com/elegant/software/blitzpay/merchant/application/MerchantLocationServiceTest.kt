@@ -75,10 +75,8 @@ class MerchantLocationServiceTest {
             )
         )
 
-        whenever(repository.findNearby(any(), any(), any())).thenReturn(emptyList())
         whenever(merchantBranchRepository.findAllByActiveTrue()).thenReturn(listOf(branch))
         whenever(repository.findAllById(any<Set<java.util.UUID>>())).thenReturn(listOf(merchant))
-        whenever(merchantBranchRepository.findAllByMerchantApplicationIdInAndActiveTrue(any())).thenReturn(listOf(branch))
 
         val response = service.findNearby(53.1022777, 8.9146786, 500.0)
 
@@ -86,5 +84,39 @@ class MerchantLocationServiceTest {
         assertEquals(merchant.id, response.merchants.first().merchantId)
         assertNotNull(response.merchants.first().activeBranches.firstOrNull())
         assertEquals(branch.id, response.merchants.first().activeBranches.first().branchId)
+    }
+
+    @Test
+    fun `find nearby ignores merchant level location when no branch is within radius`() {
+        val merchant = MerchantApplication(
+            applicationReference = "BLTZ-NEARBY-MERCHANT-ONLY",
+            businessProfile = BusinessProfile(
+                legalBusinessName = "Merchant Only GmbH",
+                businessType = "LLC",
+                registrationNumber = "DE-NEARBY-MERCHANT",
+                operatingCountry = "DE",
+                primaryBusinessAddress = "Legal Strasse 3"
+            ),
+            primaryContact = PrimaryContact("Jane Doe", "jane@example.com", "+491234")
+        ).also {
+            it.updateLocation(MerchantLocation(53.1022777, 8.9146786, 150))
+        }
+
+        val distantBranch = MerchantBranch(
+            merchantApplicationId = merchant.id,
+            name = "Distant Branch",
+            location = MerchantLocation(
+                latitude = 53.2000000,
+                longitude = 8.0000000,
+                geofenceRadiusMeters = 150
+            )
+        )
+
+        whenever(merchantBranchRepository.findAllByActiveTrue()).thenReturn(listOf(distantBranch))
+        whenever(repository.findAllById(any<Set<java.util.UUID>>())).thenReturn(listOf(merchant))
+
+        val response = service.findNearby(53.1022777, 8.9146786, 500.0)
+
+        assertEquals(0, response.merchants.size)
     }
 }

@@ -261,7 +261,7 @@ class MerchantProductServiceTest {
             unitPrice = BigDecimal("12.00")
         )
         val upload = ProductImageUpload(contentType = "image/png", bytes = byteArrayOf(4, 5, 6))
-        whenever(productRepository.findByIdAndActiveTrue(productId)).thenReturn(Optional.of(product))
+        whenever(productRepository.findByIdAndMerchantBranchId(productId, branchId)).thenReturn(Optional.of(product))
         whenever(productRepository.save(any<MerchantProduct>())).thenAnswer { it.arguments[0] }
 
         val response = service.update(merchantId, productId, request, upload)
@@ -286,7 +286,7 @@ class MerchantProductServiceTest {
             unitPrice = BigDecimal("10.00"),
             merchantBranchId = branchId
         )
-        whenever(productRepository.findByIdAndActiveTrue(productId)).thenReturn(Optional.of(product))
+        whenever(productRepository.findByIdAndMerchantBranchId(productId, branchId)).thenReturn(Optional.of(product))
         whenever(productRepository.save(any<MerchantProduct>())).thenAnswer { it.arguments[0] }
         whenever(categoryRepository.findByMerchantApplicationIdAndId(merchantId, categoryId)).thenReturn(
             MerchantProductCategory(merchantApplicationId = merchantId, id = categoryId, name = "Drinks")
@@ -327,7 +327,7 @@ class MerchantProductServiceTest {
             merchantBranchId = branchId,
             productCode = 12L
         )
-        whenever(productRepository.findByIdAndActiveTrue(productId)).thenReturn(Optional.of(source))
+        whenever(productRepository.findByIdAndMerchantBranchId(productId, branchId)).thenReturn(Optional.of(source))
         whenever(productRepository.findByMerchantBranchIdAndProductCode(branchId, 12L)).thenReturn(target)
         whenever(productRepository.save(any<MerchantProduct>())).thenAnswer { it.arguments[0] }
 
@@ -398,11 +398,29 @@ class MerchantProductServiceTest {
             imageStorageKey = "merchants/$merchantId/branches/$branchId/products/product/image.jpg",
             merchantBranchId = branchId
         )
-        whenever(productRepository.findAllByActiveTrueAndMerchantBranchId(branchId)).thenReturn(listOf(product))
+        whenever(productRepository.findAllByMerchantBranchId(branchId)).thenReturn(listOf(product))
 
         val response = service.list(merchantId, branchId)
 
         assertEquals("https://signed.example/merchants/$merchantId/branches/$branchId/products/product/image.jpg", response.single().imageUrl)
+    }
+
+    @Test
+    fun `list returns inactive products for the branch`() {
+        val inactiveProduct = MerchantProduct(
+            merchantApplicationId = merchantId,
+            name = "Archived Coffee",
+            unitPrice = BigDecimal("10.00"),
+            active = false,
+            merchantBranchId = branchId
+        )
+        whenever(productRepository.findAllByMerchantBranchId(branchId)).thenReturn(listOf(inactiveProduct))
+
+        val response = service.list(merchantId, branchId)
+
+        assertEquals(1, response.size)
+        assertEquals(false, response.single().active)
+        verify(productRepository).findAllByMerchantBranchId(branchId)
     }
 
     @Test
@@ -417,13 +435,37 @@ class MerchantProductServiceTest {
         whenever(categoryRepository.findByMerchantApplicationIdAndId(merchantId, categoryId)).thenReturn(
             MerchantProductCategory(merchantApplicationId = merchantId, id = categoryId, name = "Drinks")
         )
-        whenever(productRepository.findAllByActiveTrueAndMerchantBranchIdAndProductCategoryId(branchId, categoryId))
+        whenever(productRepository.findAllByMerchantBranchIdAndProductCategoryId(branchId, categoryId))
             .thenReturn(listOf(product))
 
         val response = service.list(merchantId, branchId, categoryId)
 
         assertEquals(1, response.size)
         assertEquals("Drinks", response.single().categoryName)
+    }
+
+    @Test
+    fun `list with category filter returns inactive products`() {
+        val product = MerchantProduct(
+            merchantApplicationId = merchantId,
+            name = "Archived Coffee",
+            unitPrice = BigDecimal("10.00"),
+            active = false,
+            merchantBranchId = branchId,
+            productCategoryId = categoryId
+        )
+        whenever(categoryRepository.findByMerchantApplicationIdAndId(merchantId, categoryId)).thenReturn(
+            MerchantProductCategory(merchantApplicationId = merchantId, id = categoryId, name = "Drinks")
+        )
+        whenever(productRepository.findAllByMerchantBranchIdAndProductCategoryId(branchId, categoryId))
+            .thenReturn(listOf(product))
+
+        val response = service.list(merchantId, branchId, categoryId)
+
+        assertEquals(1, response.size)
+        assertEquals(false, response.single().active)
+        assertEquals("Drinks", response.single().categoryName)
+        verify(productRepository).findAllByMerchantBranchIdAndProductCategoryId(branchId, categoryId)
     }
 
     @Test
@@ -436,7 +478,7 @@ class MerchantProductServiceTest {
             unitPrice = BigDecimal("10.00"),
             merchantBranchId = branchId
         )
-        whenever(productRepository.findByIdAndActiveTrueAndMerchantBranchId(productId, branchId)).thenReturn(Optional.of(product))
+        whenever(productRepository.findByIdAndMerchantBranchId(productId, branchId)).thenReturn(Optional.of(product))
 
         val response = service.get(merchantId, productId, branchId)
 
@@ -455,12 +497,30 @@ class MerchantProductServiceTest {
             imageStorageKey = "missing",
             merchantBranchId = branchId
         )
-        whenever(productRepository.findByIdAndActiveTrueAndMerchantBranchId(productId, branchId)).thenReturn(Optional.of(product))
+        whenever(productRepository.findByIdAndMerchantBranchId(productId, branchId)).thenReturn(Optional.of(product))
         whenever(storageService.presignDownload(eq("missing"), any())).thenThrow(IllegalStateException("not found"))
 
         val response = service.get(merchantId, productId, branchId)
 
         assertEquals(null, response.imageUrl)
+    }
+
+    @Test
+    fun `get returns inactive product within branch`() {
+        val productId = UUID.randomUUID()
+        val product = MerchantProduct(
+            id = productId,
+            merchantApplicationId = merchantId,
+            name = "Archived Coffee",
+            unitPrice = BigDecimal("10.00"),
+            active = false,
+            merchantBranchId = branchId
+        )
+        whenever(productRepository.findByIdAndMerchantBranchId(productId, branchId)).thenReturn(Optional.of(product))
+
+        val response = service.get(merchantId, productId, branchId)
+
+        assertEquals(false, response.active)
     }
 
     @Test
@@ -476,7 +536,7 @@ class MerchantProductServiceTest {
     @Test
     fun `get throws when product not found`() {
         val productId = UUID.randomUUID()
-        whenever(productRepository.findByIdAndActiveTrueAndMerchantBranchId(productId, branchId)).thenReturn(Optional.empty())
+        whenever(productRepository.findByIdAndMerchantBranchId(productId, branchId)).thenReturn(Optional.empty())
 
         assertFailsWith<NoSuchElementException> {
             service.get(merchantId, productId, branchId)

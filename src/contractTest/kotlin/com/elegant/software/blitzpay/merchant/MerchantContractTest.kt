@@ -379,7 +379,7 @@ class MerchantContractTest : ContractVerifierBase() {
                 name = "Drinks"
             )
         )
-        whenever(merchantProductRepository.findAllByActiveTrueAndMerchantBranchId(branchId)).thenReturn(
+        whenever(merchantProductRepository.findAllByMerchantBranchId(branchId)).thenReturn(
             listOf(
                 MerchantProduct(
                     merchantApplicationId = merchantId,

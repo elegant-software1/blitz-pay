@@ -28,7 +28,12 @@ interface MerchantProductRepository : JpaRepository<MerchantProduct, UUID> {
     fun updateStatus(@Param("id") id: UUID, @Param("status") status: String): Int
 
     fun findAllByActiveTrue(): List<MerchantProduct>
+    fun findAllByMerchantBranchId(merchantBranchId: UUID): List<MerchantProduct>
     fun findAllByActiveTrueAndMerchantBranchId(merchantBranchId: UUID): List<MerchantProduct>
+    fun findAllByMerchantBranchIdAndProductCategoryId(
+        merchantBranchId: UUID,
+        productCategoryId: UUID
+    ): List<MerchantProduct>
     fun findAllByActiveTrueAndMerchantBranchIdAndProductCategoryId(
         merchantBranchId: UUID,
         productCategoryId: UUID
@@ -42,4 +47,5 @@ interface MerchantProductRepository : JpaRepository<MerchantProduct, UUID> {
     fun countByProductCategoryIdAndActiveTrue(productCategoryId: UUID): Long
     fun findByIdAndActiveTrue(id: UUID): Optional<MerchantProduct>
     fun findByIdAndActiveTrueAndMerchantBranchId(id: UUID, merchantBranchId: UUID): Optional<MerchantProduct>
+    fun findByIdAndMerchantBranchId(id: UUID, merchantBranchId: UUID): Optional<MerchantProduct>
 }

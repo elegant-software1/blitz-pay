@@ -61,9 +61,9 @@ class MerchantLocationController(
 
     @Operation(
         summary = "Find merchants near a position",
-        description = "Returns merchants whose store location falls within radiusMeters of (lat, lng). " +
+        description = "Returns merchants that have at least one active branch location within radiusMeters of (lat, lng). " +
             "Intended for mobile geofence-enter events. Default search radius is 500 m. " +
-            "Results are ordered by ascending distance. Only merchants with a location set are returned."
+            "Results are ordered by ascending nearest branch distance. Merchant-level location is ignored."
     )
     @GetMapping("/nearby")
     fun findNearby(

@@ -51,7 +51,7 @@ class MerchantProductTools(
         cropHeight: Int? = null
     ): ProductResponse {
         val pId = UUID.fromString(productId)
-        merchantProductService.updateIncludingInactive(
+        return merchantProductService.updateIncludingInactive(
             merchantId = UUID.fromString(merchantId),
             productId = pId,
             request = UpdateProductRequest(
@@ -72,7 +72,6 @@ class MerchantProductTools(
                 cropHeight = cropHeight
             )
         )
-        return merchantProductService.markInactive(UUID.fromString(merchantId), pId)
     }
 
     // --- MCP helper tools for ID lookup/creation by name ---
@@ -269,7 +268,6 @@ class MerchantProductTools(
                     ),
                     image
                 )
-                merchantProductService.markInactive(mId, existing.productId)
             }
             return existing.productId.toString()
         }

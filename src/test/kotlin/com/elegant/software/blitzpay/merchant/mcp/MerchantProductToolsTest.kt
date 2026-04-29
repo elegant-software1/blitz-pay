@@ -192,23 +192,6 @@ class MerchantProductToolsTest {
                 updatedAt = Instant.now()
             )
         )
-        whenever(merchantProductService.markInactive(merchantId, productId)).thenReturn(
-            ProductResponse(
-                productId = productId,
-                branchId = branchId,
-                name = "Latte",
-                description = null,
-                unitPrice = BigDecimal("3.50"),
-                imageUrl = null,
-                active = false,
-                status = "INACTIVE",
-                categoryId = categoryId,
-                categoryName = "Drinks",
-                createdAt = Instant.now(),
-                updatedAt = Instant.now()
-            )
-        )
-
         tools.updateProduct(
             merchantId = merchantId.toString(),
             productId = productId.toString(),
@@ -238,22 +221,8 @@ class MerchantProductToolsTest {
                 description = null,
                 unitPrice = BigDecimal("3.50"),
                 imageUrl = null,
-                active = false,
-                status = "INACTIVE",
-                createdAt = Instant.now(),
-                updatedAt = Instant.now()
-            )
-        )
-        whenever(merchantProductService.markInactive(merchantId, productId)).thenReturn(
-            ProductResponse(
-                productId = productId,
-                branchId = branchId,
-                name = "Latte",
-                description = null,
-                unitPrice = BigDecimal("3.50"),
-                imageUrl = null,
-                active = false,
-                status = "INACTIVE",
+                active = true,
+                status = "ACTIVE",
                 createdAt = Instant.now(),
                 updatedAt = Instant.now()
             )
@@ -269,6 +238,7 @@ class MerchantProductToolsTest {
 
         verify(merchantProductService).updateIncludingInactive(eq(merchantId), eq(productId), any(), isNull())
         verify(merchantProductService, never()).update(eq(merchantId), eq(productId), any(), isNull())
+        verify(merchantProductService, never()).markInactive(any(), any())
     }
 
     @Test

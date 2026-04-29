@@ -46,7 +46,16 @@
       "Bash(python3 *)",
       "Bash(xargs cat *)",
       "Bash(git stash *)",
-      "Bash(./gradlew contractTest --tests \"com.elegant.software.blitzpay.merchant.MerchantContractTest\")"
+      "Bash(./gradlew contractTest --tests \"com.elegant.software.blitzpay.merchant.MerchantContractTest\")",
+      "WebFetch(domain:docs.koog.ai)",
+      "Bash(./gradlew contractTest --tests \"com.elegant.software.blitzpay.contract.PaymentsContractTest.should create payment request\" --info)",
+      "Bash(./gradlew contractTest --tests \"com.elegant.software.blitzpay.contract.PaymentsContractTest\")",
+      "Bash(./gradlew cleanContractTest contractTest)",
+      "Bash(./gradlew dependencies *)",
+      "Bash(./gradlew clean *)",
+      "Bash(bash *)",
+      "Bash(SPECIFY_FEATURE_DIRECTORY=specs/012-product-categories bash *)",
+      "Bash(SPECIFY_FEATURE=012-product-categories bash *)"
     ]
   },
   "hooks": {

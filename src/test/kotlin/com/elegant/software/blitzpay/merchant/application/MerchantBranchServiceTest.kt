@@ -16,6 +16,7 @@ import org.mockito.kotlin.whenever
 import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class MerchantBranchServiceTest {
     private val branchRepository = mock<MerchantBranchRepository>()
@@ -76,6 +77,33 @@ class MerchantBranchServiceTest {
 
         assertEquals(false, response.active)
         assertEquals("INACTIVE", response.status)
+    }
+
+    @Test
+    fun `list returns active and inactive branches`() {
+        val merchantId = UUID.randomUUID()
+        whenever(merchantRepository.existsById(merchantId)).thenReturn(true)
+        whenever(branchRepository.findAllByMerchantApplicationId(merchantId)).thenReturn(
+            listOf(
+                MerchantBranch(
+                    merchantApplicationId = merchantId,
+                    name = "Active Branch",
+                    active = true
+                ),
+                MerchantBranch(
+                    merchantApplicationId = merchantId,
+                    name = "Inactive Branch",
+                    active = false
+                )
+            )
+        )
+
+        val response = service.list(merchantId)
+
+        assertEquals(2, response.size)
+        assertTrue(response.any { it.name == "Active Branch" && it.active })
+        assertTrue(response.any { it.name == "Inactive Branch" && !it.active })
+        verify(branchRepository).findAllByMerchantApplicationId(merchantId)
     }
 
     @Test

@@ -3,7 +3,7 @@ info:
   title: OpenAPI definition
   version: v0
 servers:
-- url: http://localhost:65047
+- url: http://localhost:61097
   description: Generated server url
 tags:
 - name: Geofence
@@ -38,7 +38,7 @@ paths:
     get:
       tags:
       - Merchant Products
-      summary: Get a single active product
+      summary: Get a single product
       operationId: get
       parameters:
       - name: merchantId
@@ -604,7 +604,7 @@ paths:
     get:
       tags:
       - Merchant Products
-      summary: List all active products for the merchant
+      summary: List products for the merchant
       operationId: list
       parameters:
       - name: merchantId
@@ -729,7 +729,7 @@ paths:
     get:
       tags:
       - Merchant Branches
-      summary: List active branches for a merchant
+      summary: List branches for a merchant
       operationId: list_2
       parameters:
       - name: merchantId
@@ -947,10 +947,10 @@ paths:
       tags:
       - Merchant Location
       summary: Find merchants near a position
-      description: "Returns merchants whose store location falls within radiusMeters\
-        \ of (lat, lng). Intended for mobile geofence-enter events. Default search\
-        \ radius is 500 m. Results are ordered by ascending distance. Only merchants\
-        \ with a location set are returned."
+      description: "Returns merchants that have at least one active branch location\
+        \ within radiusMeters of (lat, lng). Intended for mobile geofence-enter events.\
+        \ Default search radius is 500 m. Results are ordered by ascending nearest\
+        \ branch distance. Merchant-level location is ignored."
       operationId: findNearby
       parameters:
       - name: lat
