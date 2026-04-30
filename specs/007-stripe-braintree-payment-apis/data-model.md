@@ -93,7 +93,8 @@ Outbound to mobile client.
 
 | Field | Type | Always present | Notes |
 |-------|------|----------------|-------|
-| `paymentIntent` | `String` | Yes | Stripe `client_secret` — used by mobile Stripe SDK |
+| `clientSecret` | `String` | Yes | Stripe `client_secret` — preferred field for mobile Stripe SDK integration |
+| `paymentIntent` | `String` | Yes | Stripe `client_secret` — legacy alias retained for backward compatibility |
 | `publishableKey` | `String` | Yes | Stripe publishable key resolved for the branch/merchant — safe to expose |
 
 ### Validation Rules

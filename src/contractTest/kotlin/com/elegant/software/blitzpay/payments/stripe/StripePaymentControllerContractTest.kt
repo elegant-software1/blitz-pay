@@ -35,33 +35,35 @@ class StripePaymentControllerContractTest : ContractVerifierBase() {
     }
 
     @Test
-    fun `returns 200 with paymentIntent and publishableKey for valid amount`() {
-        whenever(stripePaymentService.createIntent(any(), any(), any(), any(), anyOrNull(), anyOrNull())).thenReturn(
+    fun `returns 200 with clientSecret alias and publishableKey for valid amount`() {
+        whenever(stripePaymentService.createIntent(any(), any(), any(), any(), anyOrNull(), any(), any(), anyOrNull())).thenReturn(
             Mono.just(StripeIntentResult("pi_test_secret_abc", "pk_test_dummy"))
         )
 
         webTestClient.post().uri("/v1/payments/stripe/create-intent")
             .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue("""{"amount": 12.50, "currency": "eur", "merchantId": "$testMerchantId", "branchId": "$testBranchId"}""")
+            .bodyValue("""{"amount": 12.50, "currency": "eur", "orderId": "ORDER-123", "merchantId": "$testMerchantId", "branchId": "$testBranchId"}""")
             .exchange()
             .expectStatus().isOk
             .expectBody()
+            .jsonPath("$.clientSecret").isEqualTo("pi_test_secret_abc")
             .jsonPath("$.paymentIntent").isEqualTo("pi_test_secret_abc")
             .jsonPath("$.publishableKey").isEqualTo("pk_test_dummy")
     }
 
     @Test
     fun `returns 200 with default currency when currency omitted`() {
-        whenever(stripePaymentService.createIntent(any(), any(), any(), any(), anyOrNull(), anyOrNull())).thenReturn(
+        whenever(stripePaymentService.createIntent(any(), any(), any(), any(), anyOrNull(), any(), any(), anyOrNull())).thenReturn(
             Mono.just(StripeIntentResult("pi_test_secret_xyz", "pk_test_dummy"))
         )
 
         webTestClient.post().uri("/v1/payments/stripe/create-intent")
             .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue("""{"amount": 5.00, "merchantId": "$testMerchantId", "branchId": "$testBranchId"}""")
+            .bodyValue("""{"amount": 5.00, "orderId": "ORDER-123", "merchantId": "$testMerchantId", "branchId": "$testBranchId"}""")
             .exchange()
             .expectStatus().isOk
             .expectBody()
+            .jsonPath("$.clientSecret").exists()
             .jsonPath("$.paymentIntent").exists()
     }
 
@@ -80,7 +82,7 @@ class StripePaymentControllerContractTest : ContractVerifierBase() {
     fun `returns 400 when amount is zero`() {
         webTestClient.post().uri("/v1/payments/stripe/create-intent")
             .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue("""{"amount": 0, "merchantId": "$testMerchantId", "branchId": "$testBranchId"}""")
+            .bodyValue("""{"amount": 0, "orderId": "ORDER-123", "merchantId": "$testMerchantId", "branchId": "$testBranchId"}""")
             .exchange()
             .expectStatus().isBadRequest
             .expectBody()
@@ -91,7 +93,7 @@ class StripePaymentControllerContractTest : ContractVerifierBase() {
     fun `returns 400 when amount is negative`() {
         webTestClient.post().uri("/v1/payments/stripe/create-intent")
             .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue("""{"amount": -1.0, "merchantId": "$testMerchantId", "branchId": "$testBranchId"}""")
+            .bodyValue("""{"amount": -1.0, "orderId": "ORDER-123", "merchantId": "$testMerchantId", "branchId": "$testBranchId"}""")
             .exchange()
             .expectStatus().isBadRequest
             .expectBody()
@@ -104,7 +106,7 @@ class StripePaymentControllerContractTest : ContractVerifierBase() {
 
         webTestClient.post().uri("/v1/payments/stripe/create-intent")
             .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue("""{"amount": 12.50, "merchantId": "$testMerchantId", "branchId": "$testBranchId"}""")
+            .bodyValue("""{"amount": 12.50, "orderId": "ORDER-123", "merchantId": "$testMerchantId", "branchId": "$testBranchId"}""")
             .exchange()
             .expectStatus().isEqualTo(503)
             .expectBody()

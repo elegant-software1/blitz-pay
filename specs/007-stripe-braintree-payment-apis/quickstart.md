@@ -61,6 +61,7 @@ curl -s -X POST http://localhost:8080/v1/payments/stripe/create-intent \
 Expected response:
 ```json
 {
+  "clientSecret": "pi_xxx_secret_yyy",
   "paymentIntent": "pi_xxx_secret_yyy",
   "publishableKey": "pk_test_..."
 }

@@ -1,6 +1,9 @@
 package com.elegant.software.blitzpay.payments.braintree.internal
 
 import com.elegant.software.blitzpay.merchant.api.MerchantCredentialResolver
+import com.elegant.software.blitzpay.order.api.OrderGateway
+import com.elegant.software.blitzpay.payments.push.api.PaymentStatusInitializationGateway
+import com.elegant.software.blitzpay.payments.push.api.PaymentStatusUpdateGateway
 import io.swagger.v3.oas.annotations.Operation
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -9,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import reactor.core.publisher.Mono
+import java.time.Instant
 import java.util.UUID
 
 data class ClientTokenRequest(
@@ -20,6 +24,7 @@ data class CheckoutRequest(
     val nonce: String? = null,
     val amount: Double? = null,
     val currency: String? = null,
+    val orderId: String,
     val invoiceId: String? = null,
     val merchantId: UUID? = null,
     val branchId: UUID? = null,
@@ -30,6 +35,7 @@ data class CheckoutSuccessResponse(
     val transactionId: String,
     val amount: String,
     val currency: String,
+    val orderId: String,
     val invoiceId: String? = null,
     val merchantId: UUID,
     val branchId: UUID?,
@@ -46,6 +52,9 @@ data class BraintreeErrorResponse(val error: String)
 class BraintreePaymentController(
     private val braintreePaymentService: BraintreePaymentService,
     private val credentialResolver: MerchantCredentialResolver,
+    private val orderGateway: OrderGateway,
+    private val paymentStatusInitializationGateway: PaymentStatusInitializationGateway,
+    private val paymentStatusUpdateGateway: PaymentStatusUpdateGateway,
 ) {
 
     @Operation(summary = "Generate a Braintree client token for the mobile SDK.")
@@ -81,14 +90,30 @@ class BraintreePaymentController(
             ?: return Mono.just(
                 ResponseEntity.badRequest().body(BraintreeErrorResponse("merchantId is required") as Any)
             )
+        val orderId = request.orderId.trim().takeIf { it.isNotEmpty() }
+            ?: return Mono.just(
+                ResponseEntity.badRequest().body(BraintreeErrorResponse("orderId must not be blank") as Any)
+            )
+        val orderSummary = try {
+            orderGateway.assertPayable(orderId)
+        } catch (ex: NoSuchElementException) {
+            return Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND).body(BraintreeErrorResponse(ex.message ?: "Order not found") as Any))
+        } catch (ex: IllegalStateException) {
+            return Mono.just(ResponseEntity.status(HttpStatus.CONFLICT).body(BraintreeErrorResponse(ex.message ?: "Order is not payable") as Any))
+        }
+        if (merchantId != orderSummary.merchantId) {
+            return Mono.just(
+                ResponseEntity.badRequest().body(BraintreeErrorResponse("merchantId does not match the order") as Any)
+            )
+        }
 
-        val resolvedBranchId = credentialResolver.resolveBranch(merchantId, request.branchId, request.productId)
+        val resolvedBranchId = credentialResolver.resolveBranch(merchantId, request.branchId ?: orderSummary.branchId, request.productId)
             ?: return Mono.just(
                 ResponseEntity.badRequest()
                     .body(BraintreeErrorResponse("branch cannot be resolved: supply branchId or productId") as Any)
             )
 
-        val resolvedAmount = resolveAmount(request) ?: return Mono.just(
+        val resolvedAmount = resolveAmount(request, orderSummary.totalAmountMinor) ?: return Mono.just(
             ResponseEntity.badRequest().body(BraintreeErrorResponse("amount must be a positive number") as Any)
         )
 
@@ -106,22 +131,47 @@ class BraintreePaymentController(
         }
 
         val currency = request.currency ?: "EUR"
-        return braintreePaymentService.checkout(nonce, resolvedAmount, currency, credentials, merchantId, resolvedBranchId, request.productId, request.invoiceId)
+        val paymentRequestId = UUID.randomUUID()
+        paymentStatusInitializationGateway.initialize(
+            paymentRequestId = paymentRequestId,
+            payerRef = null,
+            orderId = orderId,
+            amountMinorUnits = Math.round(resolvedAmount * 100),
+            currency = currency.uppercase(),
+        )
+        orderGateway.linkPaymentAttempt(orderId, paymentRequestId, "BRAINTREE", null)
+        return braintreePaymentService.checkout(
+            nonce,
+            resolvedAmount,
+            currency,
+            credentials,
+            merchantId,
+            resolvedBranchId,
+            orderId,
+            request.productId,
+            request.invoiceId
+        )
             .map { result ->
                 when (result) {
-                    is BraintreeCheckoutResult.Success -> ResponseEntity.ok(
-                        CheckoutSuccessResponse(
+                    is BraintreeCheckoutResult.Success -> {
+                        orderGateway.linkPaymentAttempt(orderId, paymentRequestId, "BRAINTREE", result.transactionId)
+                        paymentStatusUpdateGateway.settle(paymentRequestId, "braintree:${result.transactionId}", Instant.now())
+                        ResponseEntity.ok(
+                            CheckoutSuccessResponse(
                             transactionId = result.transactionId,
                             amount = result.amount,
                             currency = result.currency,
+                            orderId = result.orderId,
                             invoiceId = result.invoiceId,
                             merchantId = result.merchantId,
                             branchId = result.branchId,
-                        ) as Any
-                    )
-                    is BraintreeCheckoutResult.Failure -> ResponseEntity.ok(
-                        CheckoutFailureResponse(message = result.message, code = result.code) as Any
-                    )
+                            ) as Any
+                        )
+                    }
+                    is BraintreeCheckoutResult.Failure -> {
+                        paymentStatusUpdateGateway.fail(paymentRequestId, "braintree:fail:$paymentRequestId", Instant.now())
+                        ResponseEntity.ok(CheckoutFailureResponse(message = result.message, code = result.code) as Any)
+                    }
                 }
             }
             .onErrorResume(IllegalArgumentException::class.java) { ex ->
@@ -135,13 +185,13 @@ class BraintreePaymentController(
             }
     }
 
-    private fun resolveAmount(request: CheckoutRequest): Double? {
+    private fun resolveAmount(request: CheckoutRequest, orderAmountMinor: Long): Double? {
         val productPrice = request.productId?.let { credentialResolver.resolveProductPrice(it) }
         val effectiveAmount = when {
             request.amount != null && productPrice != null -> request.amount
             request.amount != null -> request.amount
             productPrice != null -> productPrice.toDouble()
-            else -> null
+            else -> orderAmountMinor / 100.0
         }
         return effectiveAmount?.takeIf { it > 0 && it.isFinite() }
     }

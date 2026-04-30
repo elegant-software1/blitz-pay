@@ -62,6 +62,7 @@ api:
     truelayer: 1
     payments: 1
     merchant: 1
+    order: 1
     voice: 1
 
 truelayer:
@@ -83,6 +84,7 @@ truelayer:
 stripe:
   secret-key: ${STRIPE_SECRET_KEY:}
   publishable-key: ${EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY:}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
 
 braintree:
   merchant-id: ${BRAINTREE_MERCHANT_ID:}
@@ -114,6 +116,8 @@ blitzpay:
         label: Mobile-Geofencing
       merchant:
         label: Operations-Merchant
+      order:
+        label: Orders
       voice:
         label: Voice
       actuator:

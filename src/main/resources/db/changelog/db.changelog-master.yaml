@@ -47,3 +47,5 @@ databaseChangeLog:
       file: db/changelog/20260428-004-merchant-products-add-category-fk.sql
   - include:
       file: db/changelog/20260429-001-product-code-support.sql
+  - include:
+      file: db/changelog/20260430-001-create-order-tables.sql

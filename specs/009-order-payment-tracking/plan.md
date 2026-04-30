@@ -1,6 +1,6 @@
 # Implementation Plan: Order Payment Tracking
 
-**Branch**: `[009-order-payment-tracking]` | **Date**: 2026-04-24 | **Spec**: [spec.md](spec.md)
+**Branch**: `[009-order-payment-tracking]` | **Date**: 2026-04-30 | **Spec**: [spec.md](spec.md)
 **Input**: Feature specification from `/specs/009-order-payment-tracking/spec.md`
 
 ## Summary
@@ -16,7 +16,7 @@ Introduce a dedicated `order` business module that accepts orders built from mer
 **Target Platform**: Linux server on JVM  
 **Project Type**: REST web-service with Spring Modulith business modules  
 **Performance Goals**: 95% of valid order submissions complete in under 3 seconds; status lookup stays under 500ms for normal order volumes  
-**Constraints**: `ddl-auto` remains `none`/`validate`; Liquibase owns schema; all public HTTP changes require contract tests; cross-module collaboration stays on dedicated API surfaces and published events  
+**Constraints**: `ddl-auto` remains `none`/`validate`; Liquibase owns schema; all public HTTP changes require contract tests; cross-module collaboration stays on published `api` interfaces and domain events; input validation happens at HTTP boundaries  
 **Scale/Scope**: Hundreds of merchants, thousands of products, low-to-moderate order volume in v1, multiple payment providers reusing the same order ID reference
 
 ## Constitution Check
@@ -26,11 +26,13 @@ Introduce a dedicated `order` business module that accepts orders built from mer
 | Rule | Status | Notes |
 |------|--------|-------|
 | Kotlin-only application code | ✅ | No Java source planned |
-| Spring Modulith boundaries respected | ✅ | New top-level `order` module owns its own tables and listens to payment events |
-| API versioning and stable contracts | ✅ | New order endpoints stay under `/v1/...`; existing payment contract changes get contract coverage |
-| Liquibase owns schema | ✅ | New order tables and indexes are introduced via Liquibase only |
-| Table prefix matches owning leaf module | ✅ | Tables will use `order_` prefixes |
-| Tests for every behavior change | ✅ | Unit, contract, and modulith verification updates are part of the plan |
+| Spring Modulith boundaries respected | ✅ | New top-level `order` module owns its own tables, exposes a dedicated `api` surface, and consumes published payment events |
+| Cross-module access uses published contracts only | ✅ | Product validation uses `merchant.api`; payment outcome projection listens to `payments.push.api.PaymentStatusChanged` |
+| API versioning and stable contracts | ✅ | New endpoints stay under `/v1/...`; payment endpoint contract tightening is documented and must be covered by contract tests |
+| Liquibase owns schema in `blitzpay` | ✅ | New order tables and indexes are introduced via Liquibase only |
+| Table prefix matches owning leaf module | ✅ | Tables and indexes will use the `order_` prefix |
+| Tests for every behavior change | ✅ | Unit, contract, and modulith verification updates are part of the plan; `./gradlew check` remains the local gate |
+| Thin controllers and validated boundaries | ✅ | Validation stays in web/request models; business rules stay in `order` services |
 
 ## Project Structure
 
@@ -58,19 +60,19 @@ src/main/kotlin/com/elegant/software/blitzpay/
 │   ├── application/
 │   ├── domain/
 │   ├── repository/
-│   ├── support/
 │   └── web/
 ├── merchant/
 │   └── api/
 ├── payments/
-│   ├── braintree/internal/
+│   ├── braintree/
 │   ├── push/api/
 │   ├── qrpay/
+│   ├── stripe/
 │   └── truelayer/api/
 └── config/
 
-src/main/resources/
-└── db/changelog/
+src/main/resources/db/changelog/
+└── changes/
 
 src/test/kotlin/com/elegant/software/blitzpay/
 ├── order/
@@ -78,11 +80,35 @@ src/test/kotlin/com/elegant/software/blitzpay/
 └── ModularityTest.kt
 
 src/contractTest/kotlin/com/elegant/software/blitzpay/
+├── contract/
+├── merchant/
 ├── order/
 └── payments/
 ```
 
-**Structure Decision**: Use a new `order` leaf module because order lifecycle ownership is distinct from merchant catalog ownership and payment execution. The module will depend on `merchant.api` for product validation and will consume `payments.push.api.PaymentStatusChanged` events for status progression.
+**Structure Decision**: Use a new `order` leaf module because order lifecycle ownership is distinct from merchant catalog ownership and payment execution. The module will depend only on published module APIs for synchronous validation and on published payment events for asynchronous status progression.
+
+## Phase 0: Research Summary
+
+Phase 0 resolved the main design unknowns:
+- module ownership belongs in a new `order` module rather than `merchant`, `payments`, or `invoice`
+- merchant product validation should use a dedicated published merchant API surface
+- order items must snapshot product data at creation time for historical accuracy
+- order status stays business-facing with a compact payment lifecycle
+- payment status projection should map normalized payment events onto order status using a persisted payment-attempt link
+- the generated `orderId` is the canonical payment reference across providers
+
+See [research.md](research.md) for the decision log and alternatives considered.
+
+## Post-Design Constitution Check
+
+| Rule | Status | Notes |
+|------|--------|-------|
+| Module boundaries remain explicit | ✅ | `order` owns persistence; `merchant` remains catalog owner; `payments` remains execution owner |
+| No cross-module table access | ✅ | Order creation uses merchant snapshots via `merchant.api`; payment linkage is stored in `order` tables |
+| Contract changes documented | ✅ | `POST /v1/orders`, `GET /v1/orders/{orderId}`, and payment reference expectations are captured under `contracts/` |
+| Schema evolution follows Liquibase rules | ✅ | Data model defines new `order_`-prefixed tables plus indexes under the `blitzpay` schema |
+| Testing strategy covers new behavior | ✅ | Quickstart includes unit, contract, and modulith verification expectations |
 
 ## Complexity Tracking
 
