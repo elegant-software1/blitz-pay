@@ -1,5 +1,6 @@
 package com.elegant.software.blitzpay.payments.push.internal
 
+import com.elegant.software.blitzpay.order.repository.PaymentAttemptRepository
 import com.elegant.software.blitzpay.payments.push.api.PaymentStatusChanged
 import com.elegant.software.blitzpay.payments.push.api.PaymentStatusCode
 import com.elegant.software.blitzpay.payments.push.persistence.DeliveryOutcome
@@ -14,15 +15,21 @@ import java.util.UUID
 @Component
 class PushDispatcher(
     private val deviceRepository: DeviceRegistrationRepository,
+    private val paymentAttemptRepository: PaymentAttemptRepository,
     private val pushClient: ExpoPushClient,
     private val attemptRepository: PushDeliveryAttemptRepository,
 ) {
     private val log = LoggerFactory.getLogger(PushDispatcher::class.java)
 
     fun dispatch(event: PaymentStatusChanged) {
-        val devices = deviceRepository.findByPaymentRequestIdAndInvalidFalse(event.paymentRequestId)
+        val attempt = paymentAttemptRepository.findByPaymentRequestId(event.paymentRequestId)
+        if (attempt == null) {
+            log.warn("push dispatch skipped because payment attempt was not found request={}", event.paymentRequestId)
+            return
+        }
+        val devices = deviceRepository.findByOrderIdAndInvalidFalse(attempt.orderId)
         if (devices.isEmpty()) {
-            log.info("no devices registered for payment request={}", event.paymentRequestId)
+            log.info("no devices registered for orderId={} paymentRequestId={}", attempt.orderId, event.paymentRequestId)
             return
         }
 
@@ -33,6 +40,7 @@ class PushDispatcher(
                 title = title,
                 body = body,
                 data = mapOf(
+                    "orderId" to attempt.orderId,
                     "paymentRequestId" to event.paymentRequestId.toString(),
                     "status" to event.newStatus.name,
                 ),
