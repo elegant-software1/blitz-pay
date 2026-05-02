@@ -3,7 +3,7 @@ package com.elegant.software.blitzpay.order.config
 import com.elegant.software.blitzpay.config.ApiVersionProperties
 import com.elegant.software.blitzpay.config.OpenApiGroupProperties
 import com.elegant.software.blitzpay.config.rewriteVersionPaths
-import com.elegant.software.blitzpay.order.web.OrderController
+import com.elegant.software.blitzpay.order.web.ShopperOrderController
 import io.swagger.v3.oas.models.info.Info
 import org.springdoc.core.models.GroupedOpenApi
 import org.springframework.context.annotation.Bean
@@ -19,8 +19,8 @@ class OrderOpenApiConfig(
     fun orderApi(): GroupedOpenApi =
         GroupedOpenApi.builder()
             .group(openApiGroupProperties.groups.order.label)
-            .packagesToScan(OrderController::class.java.packageName)
-            .pathsToMatch("/{version}/orders/**")
+            .packagesToScan(ShopperOrderController::class.java.packageName)
+            .pathsToMatch("/{version}/orders/**", "/{version}/merchant/orders/**")
             .addOpenApiCustomizer { openApi ->
                 openApi.info = Info().title("BlitzPay — Orders API").version("v${apiVersionProperties.versions.order}")
                 openApi.paths = rewriteVersionPaths(openApi.paths, apiVersionProperties.versions.order)

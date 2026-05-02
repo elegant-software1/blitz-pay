@@ -1,6 +1,7 @@
 package com.elegant.software.blitzpay.order.application
 
 import com.elegant.software.blitzpay.order.OrderFixtureLoader
+import com.elegant.software.blitzpay.order.domain.CreatorType
 import com.elegant.software.blitzpay.order.domain.Order
 import com.elegant.software.blitzpay.order.domain.OrderStatus
 import com.elegant.software.blitzpay.order.domain.PaymentAttempt
@@ -26,10 +27,12 @@ class OrderStatusProjectionTest {
         val order = Order(
             orderId = "ORDER-123",
             merchantApplicationId = java.util.UUID.randomUUID(),
+            creatorType = CreatorType.SHOPPER,
+            createdById = "shopper-test",
             currency = "EUR",
             totalAmountMinor = 1099,
             itemCount = 1,
-            status = OrderStatus.PAYMENT_IN_PROGRESS
+            status = OrderStatus.PAYMENT_INITIATED,
         )
         val attempt = PaymentAttempt(
             orderIdFk = order.id,
@@ -55,10 +58,12 @@ class OrderStatusProjectionTest {
         val order = Order(
             orderId = "ORDER-123",
             merchantApplicationId = java.util.UUID.randomUUID(),
+            creatorType = CreatorType.SHOPPER,
+            createdById = "shopper-test",
             currency = "EUR",
             totalAmountMinor = 1099,
             itemCount = 1,
-            status = OrderStatus.PAID
+            status = OrderStatus.PAID,
         ).apply { paidAt = Instant.parse("2026-04-30T10:15:30Z") }
         val attempt = PaymentAttempt(
             orderIdFk = order.id,

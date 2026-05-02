@@ -1,13 +1,13 @@
 {
-  "contract": "Create Order — Shopper",
+  "contract": "Create Order — Merchant",
   "version": "v1",
-  "note": "Shopper-created orders trigger immediate payment initiation via the chosen provider. The order starts in CREATED and transitions to PAYMENT_INITIATED within the same request.",
+  "note": "Merchant-created orders do not trigger immediate payment. Instead a QR code is returned. Payment is initiated when the customer scans the QR code via their app, at which point the qrpay module transitions the order to PAYMENT_INITIATED.",
   "endpoints": [
     {
-      "id": "shopper-create-order",
+      "id": "merchant-create-order",
       "method": "POST",
-      "path": "/v1/orders",
-      "description": "Creates an order from merchant products and immediately initiates payment via the selected provider. Returns the canonical order reference and a provider-specific payment reference.",
+      "path": "/v1/merchant/orders",
+      "description": "Creates an order from the authenticated branch's products and returns a QR code for the customer to scan and pay. No payment provider is called at this stage.",
       "request": {
         "contentType": "application/json",
         "body": {
@@ -26,12 +26,6 @@
                 "minimum": 1
               }
             }
-          },
-          "paymentMethod": {
-            "type": "string",
-            "required": true,
-            "enum": ["TRUELAYER", "QRPAY", "BRAINTREE", "STRIPE"],
-            "description": "Determines which payment provider is invoked immediately after order creation."
           }
         }
       },
@@ -41,7 +35,7 @@
           "body": {
             "orderId": {
               "type": "string",
-              "description": "Canonical business reference for the order and all related payments."
+              "description": "Canonical business reference embedded in the QR code."
             },
             "merchantId": {
               "type": "string",
@@ -54,12 +48,12 @@
             },
             "status": {
               "type": "string",
-              "enum": ["CREATED", "PAYMENT_INITIATED", "PAID", "FAILED", "CANCELLED"],
-              "description": "Expected to be PAYMENT_INITIATED on successful creation + payment dispatch."
+              "enum": ["CREATED"],
+              "description": "Always CREATED on merchant order creation; transitions to PAYMENT_INITIATED when customer scans."
             },
             "creatorType": {
               "type": "string",
-              "enum": ["SHOPPER"]
+              "enum": ["MERCHANT"]
             },
             "currency": {
               "type": "string"
@@ -68,16 +62,21 @@
               "type": "integer"
             },
             "paymentRetryAllowed": {
-              "type": "boolean"
+              "type": "boolean",
+              "description": "true — customer has not yet scanned."
             },
-            "paymentReference": {
+            "qrCode": {
               "type": "object",
-              "required": false,
-              "description": "Provider-specific payment reference (e.g., TrueLayer payment link, Braintree client token). Shape varies by paymentMethod.",
+              "description": "QR code for the customer to scan and pay.",
               "properties": {
-                "provider": { "type": "string" },
-                "paymentRequestId": { "type": "string", "format": "uuid" },
-                "providerPaymentId": { "type": "string", "required": false }
+                "imageBase64": {
+                  "type": "string",
+                  "description": "Base64-encoded PNG of the QR code."
+                },
+                "paymentUrl": {
+                  "type": "string",
+                  "description": "Deep-link URL encoded in the QR code, pointing to the QR pay flow with the orderId embedded."
+                }
               }
             },
             "items": {
@@ -97,13 +96,13 @@
           }
         },
         "400": {
-          "description": "The order request is malformed, empty, contains invalid quantities, or is missing paymentMethod."
+          "description": "The order request is malformed, empty, or contains invalid quantities."
         },
         "404": {
           "description": "One or more referenced products are unknown."
         },
         "422": {
-          "description": "Validation failed. Response body lists every invalid product reference and the specific rejection reason (inactive, wrong merchant, etc.)."
+          "description": "Validation failed. Response body lists every invalid product reference and the specific rejection reason."
         }
       }
     }

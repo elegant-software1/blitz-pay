@@ -1,10 +1,12 @@
 package com.elegant.software.blitzpay.payments.qrpay
 
+import com.elegant.software.blitzpay.config.LogContext
 import com.elegant.software.blitzpay.order.api.OrderGateway
 import com.elegant.software.blitzpay.payments.push.api.PaymentStatusInitializationGateway
 import com.elegant.software.blitzpay.payments.support.PaymentUpdateBus
 import com.elegant.software.blitzpay.payments.truelayer.api.PaymentGateway
 import com.elegant.software.blitzpay.payments.truelayer.api.PaymentRequested
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
@@ -24,6 +26,8 @@ class PaymentRequestController(
     private val paymentUpdateBus: PaymentUpdateBus,
     private val paymentStatusInitializationGateway: PaymentStatusInitializationGateway,
 ) {
+    private val log = LoggerFactory.getLogger(PaymentRequestController::class.java)
+
     @PostMapping("/request")
     fun createPaymentRequest(
         @RequestBody request: PaymentRequested,
@@ -43,30 +47,47 @@ class PaymentRequestController(
         val paymentRequestId = UUID.randomUUID()
         request.paymentRequestId = paymentRequestId
         request.payerRef = extractSubject(authorization)
-
-        paymentStatusInitializationGateway.initialize(
-            paymentRequestId = paymentRequestId,
-            payerRef = request.payerRef,
-            orderId = request.orderId,
-            amountMinorUnits = request.amountMinorUnits,
-            currency = request.currency,
-        )
-        orderGateway.linkPaymentAttempt(request.orderId, paymentRequestId, "TRUELAYER", null)
-
-        val result = paymentGateway.startPayment(request)
-        result.paymentId?.let {
-            orderGateway.linkPaymentAttempt(request.orderId, paymentRequestId, "TRUELAYER", it)
-        }
-        paymentUpdateBus.emit(paymentRequestId, result)
-
-        return ResponseEntity.accepted().body(
-            mapOf(
-                "paymentRequestId" to paymentRequestId.toString(),
-                "paymentId" to result.paymentId,
-                "resourceToken" to result.resourceToken,
-                "redirectReturnUri" to (result.redirectReturnUri ?: request.redirectReturnUri)
+        return LogContext.with(
+            LogContext.ORDER_ID to request.orderId,
+            LogContext.PAYMENT_REQUEST_ID to paymentRequestId,
+            LogContext.PROVIDER to "TRUELAYER",
+        ) {
+            log.info(
+                "truelayer payment request amountMinorUnits={} currency={} payerRefPresent={} redirectReturnUri={}",
+                request.amountMinorUnits, request.currency, !request.payerRef.isNullOrBlank(), request.redirectReturnUri,
             )
-        )
+            paymentStatusInitializationGateway.initialize(
+                paymentRequestId = paymentRequestId,
+                payerRef = request.payerRef,
+                orderId = request.orderId,
+                amountMinorUnits = request.amountMinorUnits,
+                currency = request.currency,
+            )
+            log.info("truelayer payment status initialized")
+            orderGateway.linkPaymentAttempt(request.orderId, paymentRequestId, "TRUELAYER", null)
+            log.info("truelayer payment attempt linked to order")
+
+            val result = paymentGateway.startPayment(request)
+            log.info(
+                "truelayer payment gateway started paymentId={} resourceTokenPresent={} redirectReturnUri={}",
+                result.paymentId, !result.resourceToken.isNullOrBlank(), result.redirectReturnUri ?: request.redirectReturnUri,
+            )
+            result.paymentId?.let {
+                orderGateway.linkPaymentAttempt(request.orderId, paymentRequestId, "TRUELAYER", it)
+                log.info("truelayer payment attempt linked providerReference={}", it)
+            }
+            paymentUpdateBus.emit(paymentRequestId, result)
+            log.info("truelayer payment update emitted to bus")
+
+            ResponseEntity.accepted().body(
+                mapOf(
+                    "paymentRequestId" to paymentRequestId.toString(),
+                    "paymentId" to result.paymentId,
+                    "resourceToken" to result.resourceToken,
+                    "redirectReturnUri" to (result.redirectReturnUri ?: request.redirectReturnUri)
+                )
+            )
+        }
     }
 
     private fun extractSubject(authorization: String?): String? {

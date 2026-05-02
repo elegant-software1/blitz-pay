@@ -5,7 +5,7 @@
 
 ## Summary
 
-Introduce a dedicated `order` business module that accepts orders built from merchant products, persists an order lifecycle with payment-oriented status, and standardizes the system-generated order ID as the shared payment reference across payment providers. The design keeps merchant catalog ownership in the `merchant` module, keeps payment execution in the `payments` module, and lets the new `order` module own order persistence, status transitions, and payment-attempt linkage.
+Introduce a dedicated `order` business module with two creation paths: shoppers create orders via `POST /v1/orders` and payment is immediately initiated via the chosen provider; merchants create orders via `POST /v1/merchant/orders` and receive a QR code for the customer to scan and pay. The module owns order persistence, a five-value status lifecycle (`CREATED` → `PAYMENT_INITIATED` → `PAID` | `FAILED` | `CANCELLED`), product snapshots at creation time, creator identity capture, and payment-attempt linkage. Read endpoints are actor-scoped: shoppers query their own orders; merchant endpoints are branch-scoped. The system-generated `orderId` is the canonical payment reference across all providers.
 
 ## Technical Context
 
@@ -45,9 +45,12 @@ specs/009-order-payment-tracking/
 ├── data-model.md
 ├── quickstart.md
 ├── contracts/
-│   ├── create-order.json
-│   ├── get-order.json
-│   └── payment-order-reference.json
+│   ├── create-order.json              (POST /v1/orders — shopper)
+│   ├── merchant-create-order.json     (POST /v1/merchant/orders — merchant)
+│   ├── get-order.json                 (GET /v1/orders/{orderId})
+│   ├── list-shopper-orders.json       (GET /v1/orders)
+│   ├── list-merchant-orders.json      (GET /v1/merchant/orders)
+│   └── payment-order-reference.json   (qrpay scan + braintree reference)
 └── tasks.md
 ```
 
@@ -58,9 +61,9 @@ src/main/kotlin/com/elegant/software/blitzpay/
 ├── order/
 │   ├── api/
 │   ├── application/
-│   ├── domain/
+│   ├── domain/             (Order, OrderItem, OrderStatus enum, CreatorType enum, PaymentAttempt)
 │   ├── repository/
-│   └── web/
+│   └── web/                (ShopperOrderController, MerchantOrderController)
 ├── merchant/
 │   └── api/
 ├── payments/
@@ -91,12 +94,14 @@ src/contractTest/kotlin/com/elegant/software/blitzpay/
 ## Phase 0: Research Summary
 
 Phase 0 resolved the main design unknowns:
-- module ownership belongs in a new `order` module rather than `merchant`, `payments`, or `invoice`
-- merchant product validation should use a dedicated published merchant API surface
-- order items must snapshot product data at creation time for historical accuracy
-- order status stays business-facing with a compact payment lifecycle
-- payment status projection should map normalized payment events onto order status using a persisted payment-attempt link
-- the generated `orderId` is the canonical payment reference across providers
+- Module ownership belongs in a new `order` module rather than `merchant`, `payments`, or `invoice`.
+- Merchant product validation uses a dedicated published merchant API surface (synchronous, fail-fast, all-or-nothing rejection).
+- Product snapshots (name, price, unit) are always captured at order creation time — mandatory, not optional.
+- Status enum is `CREATED`, `PAYMENT_INITIATED`, `PAID`, `FAILED`, `CANCELLED` — `CREATED` is observable as a distinct state for merchant-created QR orders.
+- Two creation paths: shopper orders trigger immediate provider payment dispatch; merchant orders generate a QR code and defer payment to customer scan.
+- Creator identity (`created_by_id`, `creator_type`: `MERCHANT` | `SHOPPER`) is stored on every order and drives read-endpoint scoping.
+- Payment status projection maps normalized payment events onto order status via a persisted payment-attempt link.
+- The generated `orderId` is the canonical payment reference across all providers.
 
 See [research.md](research.md) for the decision log and alternatives considered.
 

@@ -37,7 +37,7 @@ class StripePaymentControllerContractTest : ContractVerifierBase() {
     @Test
     fun `returns 200 with clientSecret alias and publishableKey for valid amount`() {
         whenever(stripePaymentService.createIntent(any(), any(), any(), any(), anyOrNull(), any(), any(), anyOrNull())).thenReturn(
-            Mono.just(StripeIntentResult("pi_test_secret_abc", "pk_test_dummy"))
+            Mono.just(StripeIntentResult("pi_test_secret_abc", "pi_abc123", "pk_test_dummy"))
         )
 
         webTestClient.post().uri("/v1/payments/stripe/create-intent")
@@ -46,15 +46,18 @@ class StripePaymentControllerContractTest : ContractVerifierBase() {
             .exchange()
             .expectStatus().isOk
             .expectBody()
+            .jsonPath("$.paymentRequestId").value<String> { paymentRequestId ->
+                require(Regex("[0-9a-fA-F\\-]{36}").matches(paymentRequestId))
+            }
             .jsonPath("$.clientSecret").isEqualTo("pi_test_secret_abc")
-            .jsonPath("$.paymentIntent").isEqualTo("pi_test_secret_abc")
+            .jsonPath("$.paymentIntent").isEqualTo("pi_abc123")
             .jsonPath("$.publishableKey").isEqualTo("pk_test_dummy")
     }
 
     @Test
     fun `returns 200 with default currency when currency omitted`() {
         whenever(stripePaymentService.createIntent(any(), any(), any(), any(), anyOrNull(), any(), any(), anyOrNull())).thenReturn(
-            Mono.just(StripeIntentResult("pi_test_secret_xyz", "pk_test_dummy"))
+            Mono.just(StripeIntentResult("pi_test_secret_xyz", "pi_xyz789", "pk_test_dummy"))
         )
 
         webTestClient.post().uri("/v1/payments/stripe/create-intent")
@@ -63,6 +66,9 @@ class StripePaymentControllerContractTest : ContractVerifierBase() {
             .exchange()
             .expectStatus().isOk
             .expectBody()
+            .jsonPath("$.paymentRequestId").value<String> { paymentRequestId ->
+                require(Regex("[0-9a-fA-F\\-]{36}").matches(paymentRequestId))
+            }
             .jsonPath("$.clientSecret").exists()
             .jsonPath("$.paymentIntent").exists()
     }

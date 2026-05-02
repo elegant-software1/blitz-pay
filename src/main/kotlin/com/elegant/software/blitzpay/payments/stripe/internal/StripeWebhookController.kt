@@ -1,5 +1,6 @@
 package com.elegant.software.blitzpay.payments.stripe.internal
 
+import com.elegant.software.blitzpay.config.LogContext
 import com.elegant.software.blitzpay.payments.push.api.PaymentStatusUpdateGateway
 import com.elegant.software.blitzpay.payments.stripe.config.StripeProperties
 import com.stripe.exception.SignatureVerificationException
@@ -29,49 +30,64 @@ class StripeWebhookController(
         @RequestHeader("Stripe-Signature") signature: String?,
         @RequestBody payload: String,
     ): ResponseEntity<Any> {
-        if (stripeProperties.webhookSecret.isBlank()) {
-            log.warn("stripe webhook received but STRIPE_WEBHOOK_SECRET is not configured")
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build()
-        }
-        if (signature.isNullOrBlank()) {
-            log.warn("stripe webhook rejected reason=missing_signature")
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
-        }
-
-        val event = try {
-            Webhook.constructEvent(payload, signature, stripeProperties.webhookSecret)
-        } catch (ex: SignatureVerificationException) {
-            log.warn("stripe webhook rejected reason=signature_invalid error={}", ex.message)
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
-        }
-
-        val paymentIntent = event.dataObjectDeserializer.getObject().orElse(null) as? PaymentIntent
-            ?: run {
-                log.debug("stripe webhook event={} type={} carries no PaymentIntent; ignoring", event.id, event.type)
-                return ResponseEntity.ok().build()
+        return LogContext.with(LogContext.PROVIDER to "STRIPE") {
+            log.info("stripe webhook received payloadLength={} signaturePresent={}", payload.length, !signature.isNullOrBlank())
+            if (stripeProperties.webhookSecret.isBlank()) {
+                log.warn("stripe webhook received but STRIPE_WEBHOOK_SECRET is not configured")
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build()
+            }
+            if (signature.isNullOrBlank()) {
+                log.warn("stripe webhook rejected reason=missing_signature")
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
             }
 
-        val paymentRequestId = paymentIntent.metadata["paymentRequestId"]
-            ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-            ?: run {
-                log.warn("stripe webhook event={} missing paymentRequestId in metadata intentId={}", event.id, paymentIntent.id)
-                return ResponseEntity.ok().build()
+            val event = try {
+                Webhook.constructEvent(payload, signature, stripeProperties.webhookSecret)
+            } catch (ex: SignatureVerificationException) {
+                log.warn("stripe webhook rejected reason=signature_invalid error={}", ex.message)
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
             }
 
-        val occurredAt = Instant.ofEpochSecond(event.created)
+            LogContext.with(LogContext.EVENT_ID to event.id) {
+                log.info("stripe webhook verified type={} created={}", event.type, event.created)
+                val paymentIntent = event.dataObjectDeserializer.getObject().orElse(null) as? PaymentIntent
+                    ?: run {
+                        log.debug("stripe webhook event={} type={} carries no PaymentIntent; ignoring", event.id, event.type)
+                        return ResponseEntity.ok().build()
+                    }
 
-        when (event.type) {
-            "payment_intent.succeeded" -> {
-                log.info("stripe webhook settled paymentRequestId={} intentId={}", paymentRequestId, paymentIntent.id)
-                paymentStatusUpdateGateway.settle(paymentRequestId, "stripe:${event.id}", occurredAt)
+                val paymentRequestId = paymentIntent.metadata["paymentRequestId"]
+                    ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                    ?: run {
+                        log.warn("stripe webhook event={} missing paymentRequestId in metadata intentId={}", event.id, paymentIntent.id)
+                        return ResponseEntity.ok().build()
+                    }
+
+                return LogContext.with(
+                    LogContext.PAYMENT_REQUEST_ID to paymentRequestId,
+                    LogContext.PAYMENT_INTENT_ID to paymentIntent.id,
+                ) {
+                    val occurredAt = Instant.ofEpochSecond(event.created)
+                    log.info(
+                        "stripe webhook mapped paymentRequestId metadataKeys={} occurredAt={}",
+                        paymentIntent.metadata.keys, occurredAt,
+                    )
+
+                    when (event.type) {
+                        "payment_intent.succeeded" -> {
+                            log.info("stripe webhook settling payment")
+                            paymentStatusUpdateGateway.settle(paymentRequestId, "stripe:${event.id}", occurredAt)
+                        }
+                        "payment_intent.payment_failed" -> {
+                            log.info("stripe webhook failing payment")
+                            paymentStatusUpdateGateway.fail(paymentRequestId, "stripe:${event.id}", occurredAt)
+                        }
+                        else -> log.debug("stripe webhook event={} type={} not handled", event.id, event.type)
+                    }
+
+                    ResponseEntity.ok().build()
+                }
             }
-            "payment_intent.payment_failed" -> {
-                log.info("stripe webhook failed paymentRequestId={} intentId={}", paymentRequestId, paymentIntent.id)
-                paymentStatusUpdateGateway.fail(paymentRequestId, "stripe:${event.id}", occurredAt)
-            }
-            else -> log.debug("stripe webhook event={} type={} not handled", event.id, event.type)
         }
-
-        return ResponseEntity.ok().build()
     }
 }

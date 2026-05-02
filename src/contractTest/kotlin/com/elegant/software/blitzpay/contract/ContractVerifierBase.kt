@@ -2,6 +2,9 @@ package com.elegant.software.blitzpay.contract
 
 import com.elegant.software.blitzpay.order.api.OrderGateway
 import com.elegant.software.blitzpay.order.api.OrderPaymentSummary
+import com.elegant.software.blitzpay.order.repository.OrderItemRepository
+import com.elegant.software.blitzpay.order.repository.OrderRepository
+import com.elegant.software.blitzpay.order.repository.PaymentAttemptRepository
 import com.elegant.software.blitzpay.payments.QuickpayApplication
 import com.elegant.software.blitzpay.merchant.application.MerchantProductCategoryService
 import com.elegant.software.blitzpay.merchant.repository.MerchantApplicationRepository
@@ -107,6 +110,15 @@ abstract class ContractVerifierBase {
 
     @MockitoBean
     protected lateinit var orderGateway: OrderGateway
+
+    @MockitoBean
+    protected lateinit var orderRepository: OrderRepository
+
+    @MockitoBean
+    protected lateinit var orderItemRepository: OrderItemRepository
+
+    @MockitoBean
+    protected lateinit var paymentAttemptRepository: PaymentAttemptRepository
 
     @MockitoBean
     protected lateinit var entityManager: EntityManager

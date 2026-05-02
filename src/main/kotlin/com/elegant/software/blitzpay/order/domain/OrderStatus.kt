@@ -1,11 +1,14 @@
 package com.elegant.software.blitzpay.order.domain
 
 enum class OrderStatus {
-    PENDING_PAYMENT,
-    PAYMENT_IN_PROGRESS,
+    CREATED,
+    PAYMENT_INITIATED,
     PAID,
-    PAYMENT_FAILED,
+    FAILED,
     CANCELLED;
 
-    fun isTerminal(): Boolean = this == PAID || this == CANCELLED
+    fun isTerminal(): Boolean = this == PAID
+
+    val paymentRetryAllowed: Boolean
+        get() = this == CREATED || this == FAILED || this == CANCELLED
 }

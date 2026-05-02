@@ -1,10 +1,12 @@
 package com.elegant.software.blitzpay.payments.braintree.internal
 
+import com.elegant.software.blitzpay.config.LogContext
 import com.elegant.software.blitzpay.merchant.api.MerchantCredentialResolver
 import com.elegant.software.blitzpay.order.api.OrderGateway
 import com.elegant.software.blitzpay.payments.push.api.PaymentStatusInitializationGateway
 import com.elegant.software.blitzpay.payments.push.api.PaymentStatusUpdateGateway
 import io.swagger.v3.oas.annotations.Operation
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
@@ -32,6 +34,7 @@ data class CheckoutRequest(
 )
 data class CheckoutSuccessResponse(
     val status: String = "succeeded",
+    val paymentRequestId: UUID,
     val transactionId: String,
     val amount: String,
     val currency: String,
@@ -56,6 +59,7 @@ class BraintreePaymentController(
     private val paymentStatusInitializationGateway: PaymentStatusInitializationGateway,
     private val paymentStatusUpdateGateway: PaymentStatusUpdateGateway,
 ) {
+    private val log = LoggerFactory.getLogger(BraintreePaymentController::class.java)
 
     @Operation(summary = "Generate a Braintree client token for the mobile SDK.")
     @PostMapping("/client-token")
@@ -73,14 +77,23 @@ class BraintreePaymentController(
                     .body(BraintreeErrorResponse("Payment provider not configured") as Any)
             )
 
-        return braintreePaymentService.generateClientToken(credentials)
-            .map { token -> ResponseEntity.ok(ClientTokenResponse(token) as Any) }
-            .onErrorResume { ex ->
-                Mono.just(
-                    ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(BraintreeErrorResponse(ex.message ?: "Braintree client token generation failed") as Any)
-                )
-            }
+        return LogContext.with(
+            LogContext.PROVIDER to "BRAINTREE",
+        ) {
+            log.info("braintree client-token request merchantId={} branchId={}", merchantId, resolvedBranchId)
+            braintreePaymentService.generateClientToken(credentials)
+                .map { token ->
+                    log.info("braintree client-token generated tokenPresent={}", token.isNotBlank())
+                    ResponseEntity.ok(ClientTokenResponse(token) as Any)
+                }
+                .onErrorResume { ex ->
+                    log.error("braintree client-token failed message={}", ex.message, ex)
+                    Mono.just(
+                        ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                            .body(BraintreeErrorResponse(ex.message ?: "Braintree client token generation failed") as Any)
+                    )
+                }
+        }
     }
 
     @Operation(summary = "Submit a Braintree payment nonce for settlement.")
@@ -132,57 +145,77 @@ class BraintreePaymentController(
 
         val currency = request.currency ?: "EUR"
         val paymentRequestId = UUID.randomUUID()
-        paymentStatusInitializationGateway.initialize(
-            paymentRequestId = paymentRequestId,
-            payerRef = null,
-            orderId = orderId,
-            amountMinorUnits = Math.round(resolvedAmount * 100),
-            currency = currency.uppercase(),
-        )
-        orderGateway.linkPaymentAttempt(orderId, paymentRequestId, "BRAINTREE", null)
-        return braintreePaymentService.checkout(
-            nonce,
-            resolvedAmount,
-            currency,
-            credentials,
-            merchantId,
-            resolvedBranchId,
-            orderId,
-            request.productId,
-            request.invoiceId
-        )
-            .map { result ->
-                when (result) {
-                    is BraintreeCheckoutResult.Success -> {
-                        orderGateway.linkPaymentAttempt(orderId, paymentRequestId, "BRAINTREE", result.transactionId)
-                        paymentStatusUpdateGateway.settle(paymentRequestId, "braintree:${result.transactionId}", Instant.now())
-                        ResponseEntity.ok(
-                            CheckoutSuccessResponse(
-                            transactionId = result.transactionId,
-                            amount = result.amount,
-                            currency = result.currency,
-                            orderId = result.orderId,
-                            invoiceId = result.invoiceId,
-                            merchantId = result.merchantId,
-                            branchId = result.branchId,
-                            ) as Any
-                        )
-                    }
-                    is BraintreeCheckoutResult.Failure -> {
-                        paymentStatusUpdateGateway.fail(paymentRequestId, "braintree:fail:$paymentRequestId", Instant.now())
-                        ResponseEntity.ok(CheckoutFailureResponse(message = result.message, code = result.code) as Any)
+        return LogContext.with(
+            LogContext.ORDER_ID to orderId,
+            LogContext.PAYMENT_REQUEST_ID to paymentRequestId,
+            LogContext.PROVIDER to "BRAINTREE",
+        ) {
+            log.info(
+                "braintree checkout request merchantId={} branchId={} amount={} currency={} invoiceId={} productId={}",
+                merchantId, resolvedBranchId, resolvedAmount, currency.uppercase(), request.invoiceId, request.productId,
+            )
+            paymentStatusInitializationGateway.initialize(
+                paymentRequestId = paymentRequestId,
+                payerRef = null,
+                orderId = orderId,
+                amountMinorUnits = Math.round(resolvedAmount * 100),
+                currency = currency.uppercase(),
+            )
+            log.info("braintree payment status initialized")
+            orderGateway.linkPaymentAttempt(orderId, paymentRequestId, "BRAINTREE", null)
+            log.info("braintree payment attempt linked to order")
+            braintreePaymentService.checkout(
+                nonce,
+                resolvedAmount,
+                currency,
+                credentials,
+                merchantId,
+                resolvedBranchId,
+                orderId,
+                request.productId,
+                request.invoiceId
+            )
+                .map { result ->
+                    when (result) {
+                        is BraintreeCheckoutResult.Success -> {
+                            log.info(
+                                "braintree checkout succeeded transactionId={} amount={} currency={}",
+                                result.transactionId, result.amount, result.currency,
+                            )
+                            orderGateway.linkPaymentAttempt(orderId, paymentRequestId, "BRAINTREE", result.transactionId)
+                            paymentStatusUpdateGateway.settle(paymentRequestId, "braintree:${result.transactionId}", Instant.now())
+                            ResponseEntity.ok(
+                                CheckoutSuccessResponse(
+                                    paymentRequestId = paymentRequestId,
+                                    transactionId = result.transactionId,
+                                    amount = result.amount,
+                                    currency = result.currency,
+                                    orderId = result.orderId,
+                                    invoiceId = result.invoiceId,
+                                    merchantId = result.merchantId,
+                                    branchId = result.branchId,
+                                ) as Any
+                            )
+                        }
+                        is BraintreeCheckoutResult.Failure -> {
+                            log.warn("braintree checkout failed code={} message={}", result.code, result.message)
+                            paymentStatusUpdateGateway.fail(paymentRequestId, "braintree:fail:$paymentRequestId", Instant.now())
+                            ResponseEntity.ok(CheckoutFailureResponse(message = result.message, code = result.code) as Any)
+                        }
                     }
                 }
-            }
-            .onErrorResume(IllegalArgumentException::class.java) { ex ->
-                Mono.just(ResponseEntity.badRequest().body(BraintreeErrorResponse(ex.message ?: "bad request") as Any))
-            }
-            .onErrorResume { ex ->
-                Mono.just(
-                    ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(BraintreeErrorResponse(ex.message ?: "Braintree sale failed") as Any)
-                )
-            }
+                .onErrorResume(IllegalArgumentException::class.java) { ex ->
+                    log.warn("braintree checkout rejected error={}", ex.message)
+                    Mono.just(ResponseEntity.badRequest().body(BraintreeErrorResponse(ex.message ?: "bad request") as Any))
+                }
+                .onErrorResume { ex ->
+                    log.error("braintree checkout failed message={}", ex.message, ex)
+                    Mono.just(
+                        ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                            .body(BraintreeErrorResponse(ex.message ?: "Braintree sale failed") as Any)
+                    )
+                }
+        }
     }
 
     private fun resolveAmount(request: CheckoutRequest, orderAmountMinor: Long): Double? {
@@ -193,6 +226,6 @@ class BraintreePaymentController(
             productPrice != null -> productPrice.toDouble()
             else -> orderAmountMinor / 100.0
         }
-        return effectiveAmount?.takeIf { it > 0 && it.isFinite() }
+        return effectiveAmount.takeIf { it > 0 && it.isFinite() }
     }
 }

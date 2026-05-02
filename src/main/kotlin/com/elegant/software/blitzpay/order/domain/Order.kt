@@ -26,7 +26,14 @@ class Order(
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
-    var status: OrderStatus = OrderStatus.PENDING_PAYMENT,
+    var status: OrderStatus = OrderStatus.CREATED,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "creator_type", nullable = false, length = 16)
+    val creatorType: CreatorType,
+
+    @Column(name = "created_by_id", nullable = false, length = 255)
+    val createdById: String,
 
     @Column(nullable = false, length = 3)
     val currency: String,
@@ -54,9 +61,8 @@ class Order(
 ) {
     fun markPaymentInProgress(paymentRequestId: UUID, provider: String, at: Instant = Instant.now()) {
         require(status != OrderStatus.PAID) { "Order is already paid: $orderId" }
-        require(status != OrderStatus.CANCELLED) { "Order is cancelled: $orderId" }
-        if (status == OrderStatus.PENDING_PAYMENT || status == OrderStatus.PAYMENT_FAILED) {
-            status = OrderStatus.PAYMENT_IN_PROGRESS
+        if (status == OrderStatus.CREATED || status == OrderStatus.FAILED || status == OrderStatus.CANCELLED) {
+            status = OrderStatus.PAYMENT_INITIATED
         }
         lastPaymentRequestId = paymentRequestId
         lastPaymentProvider = provider
@@ -69,24 +75,19 @@ class Order(
         provider: String?,
         at: Instant,
     ): Boolean {
-        if (status == OrderStatus.PAID || status == OrderStatus.CANCELLED) {
-            return false
-        }
+        if (status == OrderStatus.PAID) return false
         val allowed = when (status) {
-            OrderStatus.PENDING_PAYMENT -> setOf(OrderStatus.PAYMENT_IN_PROGRESS, OrderStatus.PAID, OrderStatus.PAYMENT_FAILED, OrderStatus.CANCELLED)
-            OrderStatus.PAYMENT_IN_PROGRESS -> setOf(OrderStatus.PAID, OrderStatus.PAYMENT_FAILED)
-            OrderStatus.PAYMENT_FAILED -> setOf(OrderStatus.PAYMENT_IN_PROGRESS, OrderStatus.CANCELLED)
-            OrderStatus.PAID, OrderStatus.CANCELLED -> emptySet()
+            OrderStatus.CREATED -> setOf(OrderStatus.PAYMENT_INITIATED, OrderStatus.PAID, OrderStatus.FAILED, OrderStatus.CANCELLED)
+            OrderStatus.PAYMENT_INITIATED -> setOf(OrderStatus.PAID, OrderStatus.FAILED, OrderStatus.CANCELLED)
+            OrderStatus.FAILED -> setOf(OrderStatus.PAYMENT_INITIATED, OrderStatus.CANCELLED)
+            OrderStatus.CANCELLED -> setOf(OrderStatus.PAYMENT_INITIATED)
+            OrderStatus.PAID -> emptySet()
         }
-        if (nextStatus !in allowed) {
-            return false
-        }
+        if (nextStatus !in allowed) return false
         status = nextStatus
         lastPaymentRequestId = paymentRequestId
         lastPaymentProvider = provider ?: lastPaymentProvider
-        if (nextStatus == OrderStatus.PAID) {
-            paidAt = at
-        }
+        if (nextStatus == OrderStatus.PAID) paidAt = at
         updatedAt = at
         return true
     }

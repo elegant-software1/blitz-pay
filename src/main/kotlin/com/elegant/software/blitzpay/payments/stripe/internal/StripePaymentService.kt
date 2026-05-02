@@ -11,7 +11,11 @@ import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 import java.util.UUID
 
-data class StripeIntentResult(val clientSecret: String, val publishableKey: String)
+data class StripeIntentResult(
+    val clientSecret: String,
+    val paymentIntentId: String,
+    val publishableKey: String,
+)
 
 @Service
 class StripePaymentService {
@@ -53,6 +57,7 @@ class StripePaymentService {
             )
             StripeIntentResult(
                 clientSecret = requireNotNull(intent.clientSecret) { "Stripe returned null clientSecret" },
+                paymentIntentId = intent.id,
                 publishableKey = credentials.publishableKey,
             )
         } catch (ex: StripeException) {

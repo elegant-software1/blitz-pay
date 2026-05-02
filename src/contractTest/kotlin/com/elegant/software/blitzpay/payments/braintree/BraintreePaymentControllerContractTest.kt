@@ -91,6 +91,9 @@ class BraintreePaymentControllerContractTest : ContractVerifierBase() {
             .expectStatus().isOk
             .expectBody()
             .jsonPath("$.status").isEqualTo("succeeded")
+            .jsonPath("$.paymentRequestId").value<String> { paymentRequestId ->
+                require(Regex("[0-9a-fA-F\\-]{36}").matches(paymentRequestId))
+            }
             .jsonPath("$.transactionId").isEqualTo("tx_abc123")
             .jsonPath("$.amount").isEqualTo("12.50")
             .jsonPath("$.orderId").isEqualTo("ORDER-123")
@@ -110,6 +113,9 @@ class BraintreePaymentControllerContractTest : ContractVerifierBase() {
             .expectStatus().isOk
             .expectBody()
             .jsonPath("$.status").isEqualTo("succeeded")
+            .jsonPath("$.paymentRequestId").value<String> { paymentRequestId ->
+                require(Regex("[0-9a-fA-F\\-]{36}").matches(paymentRequestId))
+            }
             .jsonPath("$.orderId").isEqualTo("ORDER-123")
             .jsonPath("$.invoiceId").isEqualTo("INV-2026-00042")
     }
